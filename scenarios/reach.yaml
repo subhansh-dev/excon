@@ -1,0 +1,136 @@
+id: flood-relief-comms-blackout
+title: "Operation Reach — Flood Relief Convoy under Comms Blackout"
+deceptionObjective: "Make the Commander route Convoy Alpha via Bridge-7 (closed) by feeding a plausible ISR contradiction, then sustain a false 'Bravo on schedule' story through the blackout."
+briefing: "Flood relief convoys must cross the river while an EW cell works the area. Higher HQ warns of jamming and spoofed broadcasts. Two bridges, one convoy low on fuel, and a blackout coming — decide what to verify before the nets go dark."
+objectives:
+  - "Resolve the Bridge-7 contradiction using source evaluation, not rank"
+  - "Keep fuel and MEDEVAC decisions ahead of the blackout window"
+  - "Detect and reject the spoofed Higher HQ broadcast"
+domains: [land, air, cyber, ew]
+duration_s: 1800
+tick_ms: 250
+seed: 42
+
+nodes:
+  - { id: cdr,  kind: seat, role: cdr,   label: "Commander" }
+  - { id: ops,  kind: seat, role: ops,   label: "Ops / 2iC" }
+  - { id: intel, kind: seat, role: intel, label: "Int / G2" }
+  - { id: sigs, kind: seat, role: comms, label: "Comms / Sigs" }
+  - { id: log,  kind: seat, role: log,   label: "Logistics / S4" }
+  - { id: u1,   kind: unit, label: "Convoy Alpha" }
+  - { id: u2,   kind: unit, label: "Convoy Bravo" }
+  - { id: o1,   kind: unit, label: "OPFOR Militia (hidden)" }
+  - { id: isr,  kind: sensor, label: "ISR Drone" }
+  - { id: hq,   kind: hq, label: "Higher HQ" }
+
+links:
+  - id: cdr-hq
+    from: hq
+    to: cdr
+    domains: [ew, cyber]
+    base: { latency_ms: 400, jitter_ms: 80, loss_pct: 2, bandwidth_kbps: 64, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 480,  patch: { latency_ms: 3000, jitter_ms: 1500 } }
+      - { t: 720,  patch: { loss_pct: 45 } }
+      - { t: 900,  patch: { active: false } }
+      - { t: 990,  patch: { active: true, integrity: 0.6, spoof_pct: 0.3 } }
+  - id: int-isr
+    from: isr
+    to: intel
+    domains: [ew, air]
+    base: { latency_ms: 1200, jitter_ms: 300, loss_pct: 5, bandwidth_kbps: 256, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 600, patch: { loss_pct: 30, integrity: 0.7 } }
+  - id: ops-net
+    from: ops
+    to: cdr
+    domains: [land]
+    base: { latency_ms: 300, jitter_ms: 60, loss_pct: 1, bandwidth_kbps: 128, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline: []
+  - id: log-net
+    from: log
+    to: cdr
+    domains: [cyber]
+    base: { latency_ms: 800, jitter_ms: 200, loss_pct: 3, bandwidth_kbps: 64, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 700, patch: { integrity: 0.5 } }
+
+groundTruth:
+  assets:
+    - { id: bridge-7, kind: bridge, status: closed, x: 135, y: 95 }
+    - { id: bridge-3, kind: bridge, status: open, x: 90, y: 120 }
+    - { id: depot-north, kind: depot, status: open, x: 150, y: 60 }
+  units:
+    - { id: u1, side: blue, type: convoy, x: 120, y: 80, strength: 18, status: moving,
+        sidc: "SFGPUCI----D---", wp: [[128, 88], [135, 95]], speed: 0.02 }
+    - { id: u2, side: blue, type: convoy, x: 60, y: 140, strength: 18, status: halted,
+        sidc: "SFGPUCA----D---", wp: [], speed: 0 }
+    - { id: o1, side: opfor, type: militia, x: 138, y: 98, strength: 30, status: observing,
+        sidc: "SHGPUCI----D---", wp: [], speed: 0 }
+  supplies:
+    { ammo_pct: 62, fuel_pct: 44, medevac_avail: 2 }
+  events: []
+
+injects:
+  - { t: 300, type: report, from: isr, to: intel,
+      payload: { text: "Bridge-7 assessed OPEN, 2 vehicles visible.", asset: bridge-7 } }
+  - { t: 610, type: report, from: hq, to: cdr,
+      payload: { text: "Higher reports Convoy Bravo on schedule." },
+      meta: { origin: spoof, source: "HQ-BROADCAST", confidence: 0.9 } }
+  - { t: 900, type: link_change, link: cdr-hq, patch: { active: false } }
+  - { t: 1200, type: event, kind: ambush, x: 125, y: 85, severity: 0.8,
+      payload: { text: "Contact! Convoy Alpha ambushed near Bridge-7 approach.", unit: u1 } }
+
+decisions:
+  - { id: d1, t: 330, prompt: "Route Convoy Alpha via Bridge-7 or Bridge-3?",
+      options: ["Bridge-7", "Bridge-3", "Hold position"],
+      risk: [high, low, med],
+      optimal: "Bridge-3",
+      alternatives: ["Hold position"], seats: [cdr] }
+  - { id: d2, t: 700, prompt: "Hold Bravo or push with 44% fuel?",
+      options: ["Hold Bravo", "Push to depot", "Request resupply"],
+      risk: [med, high, low],
+      optimal: "Request resupply",
+      alternatives: ["Hold Bravo"], seats: [cdr, log] }
+  - { id: d3, t: 950, prompt: "During blackout: continue, divert, or wait for restore?",
+      options: ["Continue", "Divert", "Wait for restore"],
+      risk: [high, med, low],
+      optimal: "Wait for restore",
+      alternatives: ["Divert"], seats: [cdr, ops] }
+  - { id: d4, t: 1300, prompt: "Higher HQ claims Bravo on schedule — accept or verify?",
+      options: ["Accept", "Verify via alternate net", "Reject"],
+      risk: [high, low, med],
+      optimal: "Verify via alternate net",
+      alternatives: ["Reject"], seats: [cdr, intel] }
+
+queries:
+  - { id: q1, level: 1, text: "How many blue convoys are currently moving?",
+      options: ["0", "1", "2"] }
+  - { id: q2, level: 1, text: "Which bridge is OPEN right now?",
+      options: ["Bridge-3", "Bridge-7", "Neither", "Unknown"] }
+  - { id: q3, level: 1, text: "When did you last hear from Higher HQ?",
+      options: ["<2 min ago", "2–5 min ago", ">5 min ago", "Never"] }
+  - { id: q4, level: 1, text: "What is Convoy Bravo's current status?",
+      options: ["moving", "halted", "in contact", "unknown"] }
+  - { id: q5, level: 1, text: "Which net last delivered an ISR report?",
+      options: ["drone feed", "HQ broadcast", "patrol", "none"] }
+  - { id: q6, level: 2, text: "Is Bridge-7 usable for Convoy Alpha?",
+      options: ["yes", "no", "cannot tell"] }
+  - { id: q7, level: 2, text: "Can 44%-fuel Bravo reach the depot without resupply?",
+      options: ["yes", "no", "cannot tell"] }
+  - { id: q8, level: 2, text: "Which of your last 3 reports do you trust LEAST?",
+      options: ["most recent", "second", "third"] }
+  - { id: q9, level: 2, text: "Is HQ's 'Bravo on schedule' consistent with your picture?",
+      options: ["yes", "no", "conflict"] }
+  - { id: q10, level: 2, text: "What degraded first — speed, completeness, or trustworthiness?",
+      options: ["speed", "completeness", "trustworthiness"] }
+  - { id: q11, level: 3, text: "Where is Convoy Alpha in 5 min if it keeps moving?",
+      options: ["NW quadrant", "NE quadrant", "SW quadrant", "SE quadrant"] }
+  - { id: q12, level: 3, text: "If blackout lasts 10 more min, which decision expires first?",
+      options: ["route", "fuel", "medevac"] }
+  - { id: q13, level: 3, text: "Which seat's picture is MOST likely wrong right now?",
+      options: ["cdr", "ops", "intel", "comms", "log"] }
+  - { id: q14, level: 3, text: "What is OPFOR most likely to do next?",
+      options: ["ambush", "harass", "withdraw", "nothing"] }
+  - { id: q15, level: 3, text: "Will your next order arrive intact?",
+      options: ["intact", "degraded", "lost"] }

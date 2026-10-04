@@ -1,0 +1,119 @@
+id: hvt-watch
+title: "Operation Silent Vigil — HVT Surveillance under Dueling Feeds"
+deceptionObjective: "Make the Commander act on the drone feed (wrong location) by discrediting the slow-but-accurate HUMINT net with latency and a spoofed corroboration."
+briefing: "A high-value target moves between two compounds. An ISR drone watches Compound East; a HUMINT source watches Compound North. Higher demands a time-sensitive decision: verify, reposition, or act. One of your feeds is being managed by the adversary."
+objectives:
+  - "Cross-reference two same-priority feeds before committing the surveillance team"
+  - "Detect spoofed corroboration on a trusted net"
+  - "Maintain decision tempo while the drone feed degrades"
+domains: [land, air, cyber, ew]
+duration_s: 1500
+tick_ms: 250
+seed: 77
+
+nodes:
+  - { id: cdr, kind: seat, role: cdr, label: "Commander" }
+  - { id: ops, kind: seat, role: ops, label: "Ops / 2iC" }
+  - { id: intel, kind: seat, role: intel, label: "Int / G2" }
+  - { id: sigs, kind: seat, role: comms, label: "Comms / Sigs" }
+  - { id: log, kind: seat, role: log, label: "Logistics / S4" }
+  - { id: u1, kind: unit, label: "Surveillance Team" }
+  - { id: o1, kind: unit, label: "HVT Convoy (hidden)" }
+  - { id: isr, kind: sensor, label: "ISR Drone" }
+  - { id: hum, kind: sensor, label: "HUMINT Source" }
+  - { id: hq, kind: hq, label: "Higher HQ" }
+
+links:
+  - id: cdr-hq
+    from: hq
+    to: cdr
+    domains: [ew, cyber]
+    base: { latency_ms: 400, jitter_ms: 80, loss_pct: 2, bandwidth_kbps: 64, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline: []
+  - id: int-isr
+    from: isr
+    to: intel
+    domains: [ew, air]
+    base: { latency_ms: 1200, jitter_ms: 300, loss_pct: 5, bandwidth_kbps: 256, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 420, patch: { latency_ms: 6000, loss_pct: 25, integrity: 0.7 } }
+      - { t: 800, patch: { active: false } }
+      - { t: 890, patch: { active: true, integrity: 0.5, spoof_pct: 0.35 } }
+  - id: int-hum
+    from: hum
+    to: intel
+    domains: [land]
+    base: { latency_ms: 4000, jitter_ms: 1000, loss_pct: 4, bandwidth_kbps: 16, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline: []
+  - id: ops-net
+    from: ops
+    to: cdr
+    domains: [land]
+    base: { latency_ms: 300, jitter_ms: 60, loss_pct: 1, bandwidth_kbps: 128, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline: []
+
+obstacles:
+  - { id: ridge-1, kind: hills, x1: 100, y1: 60, x2: 150, y2: 100, label: "Ridge Line" }
+  - { id: river-1, kind: water, x1: 40, y1: 110, x2: 160, y2: 130, label: "River" }
+
+groundTruth:
+  assets:
+    - { id: compound-north, kind: compound, status: occupied, x: 120, y: 150 }
+    - { id: compound-east, kind: compound, status: empty, x: 165, y: 90 }
+  units:
+    - { id: u1, side: blue, type: surveillance, x: 90, y: 120, strength: 6, status: observing,
+        sidc: "SFGPUCI----D---", wp: [], speed: 0 }
+    - { id: o1, side: opfor, type: convoy, x: 120, y: 152, strength: 12, status: moving,
+        sidc: "SHGPUCA----D---", wp: [[125, 150], [130, 148]], speed: 0.01 }
+  supplies:
+    { ammo_pct: 80, fuel_pct: 70, medevac_avail: 1 }
+  events: []
+
+injects:
+  - { t: 240, type: report, from: hum, to: intel,
+      payload: { text: "Source reports 3 vehicles at Compound North, movement after dark." } }
+  - { t: 300, type: report, from: isr, to: intel,
+      payload: { text: "Drone confirms HVT convoy at Compound East, 4 vehicles, high confidence.", asset: compound-east } }
+  - { t: 700, type: report, from: isr, to: intel,
+      payload: { text: "Second pass corroborates East compound. Recommend reposition team east." },
+      meta: { origin: spoof, source: "ISR-DRONE", confidence: 0.92 } }
+  - { t: 800, type: link_change, link: int-isr, patch: { active: false } }
+  - { t: 1000, type: event, kind: contact, x: 122, y: 150, severity: 0.6,
+      payload: { text: "Surveillance team reports engine noise north. Possible compromise.", unit: u1 } }
+
+decisions:
+  - { id: d1, t: 420, prompt: "Drone says East, HUMINT says North — which compound do you watch?",
+      options: ["Compound East", "Compound North", "Split coverage"],
+      risk: [high, low, med],
+      optimal: "Compound North",
+      alternatives: ["Split coverage"], seats: [cdr, intel] }
+  - { id: d2, t: 760, prompt: "Second drone pass corroborates East. Reposition the team?",
+      options: ["Reposition east", "Hold position", "Request third source"],
+      risk: [high, med, low],
+      optimal: "Request third source",
+      alternatives: ["Hold position"], seats: [cdr, intel] }
+  - { id: d3, t: 1050, prompt: "Team may be compromised. Extract or go dark?",
+      options: ["Extract now", "Go dark, hold", "Push closer"],
+      risk: [med, low, high],
+      optimal: "Go dark, hold",
+      alternatives: ["Extract now"], seats: [cdr, ops] }
+
+queries:
+  - { id: h1, level: 1, text: "Where is the HVT convoy right now?",
+      options: ["Compound North", "Compound East", "On the road", "Unknown"] }
+  - { id: h2, level: 1, text: "Which compound is currently OCCUPIED?",
+      options: ["Compound North", "Compound East", "Both", "Unknown"] }
+  - { id: h3, level: 1, text: "When did HUMINT last report?",
+      options: ["<2 min ago", "2–5 min ago", ">5 min ago", "Never"] }
+  - { id: h4, level: 2, text: "Which feed should you trust for the HVT location?",
+      options: ["drone feed", "HUMINT", "neither yet", "both equally"] }
+  - { id: h5, level: 2, text: "Is the second drone pass consistent with the first?",
+      options: ["yes", "no", "conflict"] }
+  - { id: h6, level: 2, text: "What is the surveillance team's current status?",
+      options: ["observing", "moving", "in contact", "extracted"] }
+  - { id: h7, level: 3, text: "If the drone feed stays down 10 min, what do you lose?",
+      options: ["East coverage", "North coverage", "both", "nothing"] }
+  - { id: h8, level: 3, text: "What is the HVT most likely doing next?",
+      options: ["staying put", "moving east", "moving north", "splitting up"] }
+  - { id: h9, level: 3, text: "Which seat's picture is MOST likely wrong right now?",
+      options: ["cdr", "ops", "intel", "comms", "log"] }

@@ -1,0 +1,110 @@
+/* ============================================================
+   AAR VIEW STYLES — Tactical Command Cream Neumorphic System
+   ============================================================ */
+
+/* ---------- score strip ---------- */
+.aar-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.aar-gauge {
+  flex: 1 1 150px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 14px 10px;
+  background: var(--bg-deep);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--neu-inset);
+}
+.aar-gauge-ring {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin-bottom: 10px;
+}
+.aar-gauge-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.aar-arc {
+  transition: stroke-dashoffset 900ms ease, stroke 200ms ease;
+}
+.aar-gauge-val {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-pure);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+}
+.aar-gauge-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  line-height: 1.4;
+}
+.aar-gauge-sub {
+  margin-top: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+}
+.aar-disclaimer {
+  margin: 14px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* ---------- collapsible section ---------- */
+.aar-sec-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.aar-sec-btn:hover span { color: var(--text-pure); }
+.aar-chev {
+  font-size: 10px;
+  color: var(--accent-hi);
+}
+
+/* Timeline scrubber in AAR */
+.aar-timeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 8px 12px;
+  background: var(--bg-deep);
+  border-radius: 8px;
+  box-shadow: var(--neu-inset);
+}

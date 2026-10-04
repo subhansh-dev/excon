@@ -1,0 +1,193 @@
+/* ============================================================
+   REPLAY SCRUBBER (DVR) — Tactical Command Cream Neumorphic System
+   ============================================================ */
+
+.rp {
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 16px 20px;
+}
+
+.rp-note {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+
+.rp-note-line {
+  margin: -4px 0 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ---------- layout ---------- */
+.rp-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .rp-main { grid-template-columns: 1fr; }
+}
+.rp-col { min-width: 0; }
+
+/* ---------- run picker ---------- */
+.rp-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rp-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-deep);
+  box-shadow: var(--neu-sm);
+  transition: all 120ms ease;
+}
+.rp-run:hover {
+  background: #ffffff;
+  border-color: var(--accent);
+}
+.rp-run-id { font-size: 12px; font-weight: 600; color: var(--text-pure); }
+.rp-run-state {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 7px;
+  background: var(--panel);
+}
+.rp-run-state.ok { color: var(--ok); border-color: rgba(40, 120, 52, 0.4); background: #f0fdf4; }
+
+/* ---------- empty state ---------- */
+.rp-empty {
+  text-align: center;
+  padding: 44px 22px;
+}
+.rp-empty h2 {
+  border-left: none;
+  padding-left: 0;
+  margin-bottom: 10px;
+  color: var(--dim);
+}
+.rp-empty-sub {
+  font-size: 12px;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  margin: 0 0 8px;
+}
+
+/* ---------- controls ---------- */
+.rp-controls { margin-bottom: 14px; }
+.rp-ctl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rp-readout {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-pure);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+}
+.rp-readout i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  margin-left: 6px;
+}
+.rp-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rp-sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 22px;
+  background: var(--line-hi);
+  margin: 0 5px;
+}
+.rp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg-deep);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: var(--neu-sm);
+  transition: all 120ms ease;
+}
+.rp-btn:hover { border-color: var(--accent); color: var(--text-pure); background: #ffffff; }
+.rp-btn:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.rp-btn.on {
+  border-color: var(--accent);
+  color: var(--accent-hi);
+  background: #fff9ee;
+  box-shadow: var(--neu-btn-pressed);
+}
+.rp-ico {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+  display: block;
+}
+
+/* Scrubber Timeline Track */
+.rp-track-wrap {
+  position: relative;
+  padding: 10px 0;
+  margin: 8px 0;
+}
+.rp-slider {
+  width: 100%;
+  margin: 0;
+}
+
+/* Event ticks on the timeline */
+.rp-event-ticks {
+  position: relative;
+  height: 16px;
+  background: var(--bg-deep);
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  margin-top: 4px;
+  box-shadow: var(--neu-inset);
+}
+.rp-event-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 1px;
+  cursor: pointer;
+}
+.rp-event-tick.inject { background: var(--warn); }
+.rp-event-tick.decision { background: var(--accent-hi); }
+.rp-event-tick.blackout { background: var(--danger); }

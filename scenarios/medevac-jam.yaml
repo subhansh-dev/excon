@@ -1,0 +1,123 @@
+id: medevac-jam
+title: "Operation Lifeline — MEDEVAC under EW Blackout"
+deceptionObjective: "Make the Commander distrust the (accurate) logistics feed by corrupting it early, so that during the blackout he launches the MEDEVAC without fuel confirmation."
+briefing: "Flood casualties need evacuation by helicopter. A logistics feed tracks fuel; an EW cell is active in the area and Higher warns of GPS/radio disruption. At some point the nets will go dark — your decisions before the blackout determine what survives it."
+objectives:
+  - "Pre-position fuel and confirmations BEFORE degradation onset"
+  - "Distinguish corrupted logistics data from true shortages"
+  - "Commit the MEDEVAC window with incomplete information"
+domains: [land, air, cyber, ew]
+duration_s: 1500
+tick_ms: 250
+seed: 133
+
+nodes:
+  - { id: cdr, kind: seat, role: cdr, label: "Commander" }
+  - { id: ops, kind: seat, role: ops, label: "Ops / 2iC" }
+  - { id: intel, kind: seat, role: intel, label: "Int / G2" }
+  - { id: sigs, kind: seat, role: comms, label: "Comms / Sigs" }
+  - { id: log, kind: seat, role: log, label: "Logistics / S4" }
+  - { id: u1, kind: unit, label: "MEDEVAC Helo" }
+  - { id: u2, kind: unit, label: "Ground Ambulance" }
+  - { id: isr, kind: sensor, label: "ISR Drone" }
+  - { id: hq, kind: hq, label: "Higher HQ" }
+
+links:
+  - id: cdr-hq
+    from: hq
+    to: cdr
+    domains: [ew, cyber]
+    base: { latency_ms: 400, jitter_ms: 80, loss_pct: 2, bandwidth_kbps: 64, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 600, patch: { latency_ms: 5000, loss_pct: 60 } }
+      - { t: 750, patch: { active: false } }
+      - { t: 840, patch: { active: true, integrity: 0.55, loss_pct: 20 } }
+  - id: int-isr
+    from: isr
+    to: intel
+    domains: [ew, air]
+    base: { latency_ms: 1200, jitter_ms: 300, loss_pct: 5, bandwidth_kbps: 256, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 600, patch: { loss_pct: 30, integrity: 0.7 } }
+      - { t: 750, patch: { active: false } }
+      - { t: 840, patch: { active: true, integrity: 0.6 } }
+  - id: log-net
+    from: log
+    to: cdr
+    domains: [cyber]
+    base: { latency_ms: 800, jitter_ms: 200, loss_pct: 3, bandwidth_kbps: 64, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 300, patch: { integrity: 0.45 } }
+  - id: ops-net
+    from: ops
+    to: cdr
+    domains: [land]
+    base: { latency_ms: 300, jitter_ms: 60, loss_pct: 1, bandwidth_kbps: 128, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline: []
+
+obstacles:
+  - { id: hills-1, kind: hills, x1: 120, y1: 40, x2: 170, y2: 90, label: "High Ground" }
+  - { id: water-1, kind: water, x1: 30, y1: 100, x2: 120, y2: 125, label: "Flooded Zone" }
+
+groundTruth:
+  assets:
+    - { id: lz-alpha, kind: lz, status: open, x: 150, y: 140 }
+    - { id: lz-bravo, kind: lz, status: closed, x: 70, y: 60 }
+    - { id: fuel-farm, kind: depot, status: open, x: 100, y: 100 }
+  units:
+    - { id: u1, side: blue, type: helo, x: 100, y: 100, strength: 4, status: ready,
+        sidc: "SFGPUCR----D---", wp: [], speed: 0 }
+    - { id: u2, side: blue, type: ambulance, x: 60, y: 140, strength: 6, status: moving,
+        sidc: "SFGPUCI----D---", wp: [[80, 135], [110, 138]], speed: 0.02 }
+  supplies:
+    { ammo_pct: 90, fuel_pct: 58, medevac_avail: 1 }
+  events: []
+
+injects:
+  - { t: 180, type: report, from: log, to: cdr,
+      payload: { text: "Fuel farm reports 12% remaining. Recommend conserve." },
+      meta: { origin: spoof, source: "LOG-FEED", confidence: 0.85 } }
+  - { t: 420, type: report, from: hq, to: cdr,
+      payload: { text: "EW cell active in sector. Expect GPS and radio disruption within 10 min." } }
+  - { t: 750, type: link_change, link: cdr-hq, patch: { active: false } }
+  - { t: 900, type: event, kind: casualties, x: 150, y: 140, severity: 0.9,
+      payload: { text: "6 casualties at LZ Alpha. Golden hour closing.", unit: u2 } }
+  - { t: 1100, type: report, from: hq, to: cdr,
+      payload: { text: "Higher confirms LZ Bravo reopened for rotary traffic.", asset: lz-bravo } }
+
+decisions:
+  - { id: d1, t: 260, prompt: "Logistics feed says 12% fuel. Conserve or verify the reading?",
+      options: ["Conserve fuel", "Verify via alternate check", "Ignore, push on"],
+      risk: [med, low, high],
+      optimal: "Verify via alternate check",
+      alternatives: ["Conserve fuel"], seats: [cdr, log] }
+  - { id: d2, t: 780, prompt: "Blackout onset. Launch MEDEVAC now or hold for restore?",
+      options: ["Launch now", "Hold for restore", "Send ground ambulance only"],
+      risk: [high, low, med],
+      optimal: "Send ground ambulance only",
+      alternatives: ["Hold for restore"], seats: [cdr, ops] }
+  - { id: d3, t: 1150, prompt: "HQ claims LZ Bravo reopened. Reroute there or stay with LZ Alpha?",
+      options: ["Reroute to Bravo", "Stay with Alpha", "Verify first"],
+      risk: [high, med, low],
+      optimal: "Verify first",
+      alternatives: ["Stay with Alpha"], seats: [cdr, intel] }
+
+queries:
+  - { id: m1, level: 1, text: "Which LZ is OPEN right now?",
+      options: ["LZ Alpha", "LZ Bravo", "Both", "Unknown"] }
+  - { id: m2, level: 1, text: "What is the true fuel state?",
+      options: ["critical (<20%)", "adequate (>50%)", "unknown"] }
+  - { id: m3, level: 1, text: "What is the ground ambulance doing?",
+      options: ["moving", "halted", "at LZ", "unknown"] }
+  - { id: m4, level: 2, text: "Can you trust the logistics fuel reading?",
+      options: ["yes", "no", "cannot tell"] }
+  - { id: m5, level: 2, text: "During blackout, which net still works?",
+      options: ["HQ net", "ops net", "log net", "none"] }
+  - { id: m6, level: 2, text: "How many casualties need evacuation?",
+      options: ["2", "6", "12", "unknown"] }
+  - { id: m7, level: 3, text: "If the helo launches now, what is the main risk?",
+      options: ["fuel", "weather", "LZ closed", "enemy fire"] }
+  - { id: m8, level: 3, text: "What should have been confirmed BEFORE the blackout?",
+      options: ["fuel state", "LZ status", "casualty count", "all three"] }
+  - { id: m9, level: 3, text: "Which seat's picture is MOST likely wrong right now?",
+      options: ["cdr", "ops", "intel", "comms", "log"] }

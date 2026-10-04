@@ -165,6 +165,46 @@ export const SCORE: Record<string, (ctx: ScoreCtx) => string> = {
   m7: () => "fuel",
   m8: () => "all three",
   m9: (ctx) => mostDivergentSeat(ctx),
+  // ---- thar-vigil (Jaisalmer–Pokhran axis; western post, fuel band, orbiting ISR) ----
+  t1: ({ truth }) => String(truth.units.filter((u) => u.side === "blue" && u.status === "moving").length),
+  t2: ({ truth }) => asset(truth, "western-bp")?.status ?? "unknown",
+  t3: ({ journal, view }) => {
+    const t = lastHeard(journal, "hq");
+    if (t === null) return "Never";
+    const age = view.t - t;
+    if (age < 120) return "<2 min ago";
+    if (age < 300) return "2–5 min ago";
+    return ">5 min ago";
+  },
+  t4: ({ truth }) => {
+    const f = truth.supplies.fuel_pct ?? 0;
+    return f >= 60 ? "above 60%" : f >= 40 ? "40–60%" : "below 40%";
+  },
+  t5: ({ journal }) => lastIsr(journal),
+  t6: ({ truth }) => unit(truth, "isr")?.status ?? "unknown",
+  t7: ({ truth }) => ((truth.supplies.fuel_pct ?? 0) >= 60 ? "yes" : "no"),
+  t8: () => "most recent",
+  t9: ({ truth }) => (unit(truth, "u2")?.status === "moving" ? "yes" : "no"),
+  t10: () => "speed",
+  t11: ({ truth }) => {
+    const u = unit(truth, "u1");
+    if (!u) return "NW quadrant";
+    return u.x >= 100 ? (u.y >= 100 ? "SE quadrant" : "NE quadrant") : u.y >= 100 ? "SW quadrant" : "NW quadrant";
+  },
+  t12: () => "route",
+  t13: (ctx) => mostDivergentSeat(ctx),
+  t14: ({ truth }) => {
+    const o = unit(truth, "o1");
+    if (!o || o.status === "withdrawn") return "nothing";
+    if (o.status === "attacking") return "ambush";
+    return "harass";
+  },
+  t15: ({ links }) => {
+    const cdr = links["cdr-hq"];
+    if (!cdr || !cdr.active) return "lost";
+    if (cdr.integrity < 0.8 || cdr.loss_pct > 20) return "degraded";
+    return "intact";
+  },
 };
 
 /** "As shown" scorer: what SHOULD the seat answer given only its own feed? v1 reuses

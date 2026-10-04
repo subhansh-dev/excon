@@ -3,6 +3,7 @@ import { SeatView } from "./views/SeatView";
 import { InstructorView } from "./views/InstructorView";
 import { AARView } from "./views/AARView";
 import { LobbyView } from "./views/LobbyView";
+import { HomeView } from "./views/HomeView";
 import { AnalyticsView } from "./views/AnalyticsView";
 import { ReplayView } from "./views/ReplayView";
 import { sound } from "./sound";
@@ -69,7 +70,7 @@ function GovBar() {
 
 export default function App() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const view = (params.get("view") || "lobby").toLowerCase();
+  const view = (params.get("view") || "home").toLowerCase();
   const run = params.get("run") || "";
 
   const page =
@@ -77,8 +78,9 @@ export default function App() {
     : view === "replay" ? <ReplayView runId={run} />
     : view === "instructor" || view === "excon" ? <InstructorView />
     : view === "analytics" ? <AnalyticsView />
-    : view === "lobby" || !SEATS.includes(view) ? <LobbyView />
-    : <SeatView seat={view} />;
+    : view === "lobby" ? <LobbyView />
+    : SEATS.includes(view) ? <SeatView seat={view} />
+    : <HomeView />;
 
   return (
     <>

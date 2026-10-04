@@ -108,3 +108,30 @@
   border-radius: 8px;
   box-shadow: var(--neu-inset);
 }
+
+/* ---- Print / PDF dossier -------------------------------------------------
+   window.print() is the PDF path. Collapsed sections must unfold (their height
+   is an inline style, hence !important), chrome must vanish, and colors must
+   survive the browser's background-stripping default. */
+@media print {
+  @page { margin: 12mm; }
+  html, body { background: #fff !important; }
+  body, .panel, .data th, .data td, .aar-gauge, .chart, .panel-recessed,
+  .aar-sec-body, svg, .aar-strip, .aar-disclaimer {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .btn, .nav-pills, .aar-chev { display: none !important; }
+  button.aar-sec-btn {
+    pointer-events: none; background: none; box-shadow: none;
+    border: none; padding: 0; cursor: default;
+  }
+  .aar-sec-body { max-height: none !important; overflow: visible !important; }
+  .panel { break-inside: avoid; box-shadow: none !important; }
+  .grid2 { grid-template-columns: 1fr !important; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  h2 { break-after: avoid; }
+  textarea { border: 1px solid #cdc4ad !important; min-height: 70px; }
+}

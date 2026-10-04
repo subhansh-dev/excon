@@ -1,0 +1,158 @@
+id: thar-vigil
+title: "Operation Desert Sentinel — Thar Sector C2 Under EW Siege"
+geo:
+  name: "Thar Sector — Jaisalmer–Pokhran Training Area"
+  origin: { lat: 26.45, lon: 70.60 }
+  span: { lat: 0.55, lon: 1.45 }
+  attribution: "Base map © OpenStreetMap contributors · synthetic order of battle"
+deceptionObjective: "Convince the Commander the western massing is a logistics column slipping back across the line, by pushing spoofed 'RETROGRADE CONFIRMED' traffic through the EW window — then sustain that story while the corridor is jammed."
+briefing: "A mechanized column moves on the Jaisalmer–Pokhran axis while an EW cell works the sector from west of the line. GPS spoofing is drifting the navigation picture, hostile ISR is watching the axis, and the logistics management link is already carrying something it should not. Higher wants the axis held. Verify what you can before the corridor goes dark."
+objectives:
+  - "Reject the spoofed 'retrograde' traffic with source evaluation, not rank"
+  - "Keep axis resupply ahead of the EW blackout window"
+  - "Contain the logistics IT compromise without freezing the column"
+domains: [land, air, cyber, ew]
+duration_s: 1800
+tick_ms: 250
+seed: 7
+
+nodes:
+  - { id: cdr,  kind: seat, role: cdr,   label: "Commander" }
+  - { id: ops,  kind: seat, role: ops,   label: "Ops / 2iC" }
+  - { id: intel, kind: seat, role: intel, label: "Int / G2" }
+  - { id: sigs, kind: seat, role: comms, label: "Comms / Sigs" }
+  - { id: log,  kind: seat, role: log,   label: "Logistics / S4" }
+  - { id: u1,   kind: unit, label: "Mech Column Alpha" }
+  - { id: u2,   kind: unit, label: "Infantry Company Kilo" }
+  - { id: o1,   kind: unit, label: "OPFOR Armor (hidden)" }
+  - { id: o2,   kind: unit, label: "OPFOR EW Cell (hidden)" }
+  - { id: isr,  kind: sensor, label: "ISR Drone" }
+  - { id: hq,   kind: hq, label: "Higher HQ" }
+
+links:
+  - id: cdr-hq
+    from: hq
+    to: cdr
+    domains: [ew, cyber]
+    base: { latency_ms: 420, jitter_ms: 90, loss_pct: 2, bandwidth_kbps: 64, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 420,  patch: { latency_ms: 3200, jitter_ms: 1600 } }
+      - { t: 700,  patch: { loss_pct: 50 } }
+      - { t: 840,  patch: { active: false } }
+      - { t: 1240, patch: { active: true, integrity: 0.6, spoof_pct: 0.3 } }
+  - id: int-isr
+    from: isr
+    to: intel
+    domains: [ew, air]
+    base: { latency_ms: 1100, jitter_ms: 280, loss_pct: 4, bandwidth_kbps: 256, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 540, patch: { loss_pct: 30, integrity: 0.7 } }
+  - id: ops-net
+    from: ops
+    to: cdr
+    domains: [land]
+    base: { latency_ms: 280, jitter_ms: 55, loss_pct: 1, bandwidth_kbps: 128, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 1450, patch: { loss_pct: 35, latency_ms: 2400 } }
+  - id: log-net
+    from: log
+    to: cdr
+    domains: [cyber]
+    base: { latency_ms: 750, jitter_ms: 180, loss_pct: 3, bandwidth_kbps: 64, integrity: 1.0, spoof_pct: 0, active: true }
+    timeline:
+      - { t: 620, patch: { integrity: 0.4 } }
+
+groundTruth:
+  assets:
+    - { id: jal-airfield, kind: airfield, status: open, x: 43, y: 171 }
+    - { id: pok-lrp, kind: depot, status: open, x: 181, y: 69 }
+    - { id: khet-post, kind: outpost, status: open, x: 21, y: 182 }
+    - { id: western-bp, kind: outpost, status: closed, x: 7, y: 145 }
+  units:
+    - { id: u1, side: blue, type: mech, x: 60, y: 120, strength: 22, status: moving,
+        sidc: "SFGPUCA----D---", wp: [[75, 130], [95, 140], [120, 150]], speed: 0.02 }
+    - { id: u2, side: blue, type: infantry, x: 35, y: 160, strength: 14, status: deployed,
+        sidc: "SFGPUCI----D---", wp: [], speed: 0 }
+    - { id: o1, side: opfor, type: armor, x: 10, y: 140, strength: 24, status: observing,
+        sidc: "SHGPUCI----D---", wp: [], speed: 0 }
+    - { id: o2, side: opfor, type: ew-jammer, x: 14, y: 132, strength: 8, status: jamming,
+        wp: [], speed: 0 }
+    - { id: isr, side: blue, type: isr, x: 30, y: 150, strength: 1, status: orbiting,
+        sidc: "SFGPUAI----D---", wp: [[38, 158], [30, 150]], speed: 0.03 }
+  supplies:
+    { ammo_pct: 58, fuel_pct: 41, medevac_avail: 2 }
+  events: []
+
+injects:
+  - { t: 260, type: report, from: isr, to: intel,
+      payload: { text: "ISR: cluster of 14 tracked vehicles massing west of the line, grid [10,140].", unit: o1 } }
+  - { t: 430, type: report, from: hq, to: cdr,
+      payload: { text: "WESTERN GROUP RETROGRADE CONFIRMED — axis assessed clear." },
+      meta: { origin: spoof, source: "HQ-BROADCAST", confidence: 0.9 } }
+  - { t: 620, type: event, kind: cyber, x: 181, y: 69, severity: 0.6,
+      payload: { text: "Logistics management link flagged: unknown process rewriting fuel rosters at LRP Pokhran.", unit: u1 } }
+  - { t: 840, type: link_change, link: cdr-hq, patch: { active: false } }
+  - { t: 1050, type: event, kind: sandstorm, x: 80, y: 135, severity: 0.7,
+      payload: { text: "Sandstorm on the axis — ISR visual degraded, convoys to take cover." } }
+  - { t: 1240, type: link_change, link: cdr-hq, patch: { active: true, integrity: 0.6, spoof_pct: 0.3 } }
+  - { t: 1450, type: event, kind: jamming, x: 14, y: 132, severity: 0.8,
+      payload: { text: "EW cell lights up: broadband jamming on the tactical net.", unit: o2 } }
+
+decisions:
+  - { id: d1, t: 300, prompt: "Route Column Alpha via the highway axis or the Khetolai sand track?",
+      options: ["Highway axis", "Khetolai sand track", "Hold at LRP"],
+      risk: [med, high, low],
+      optimal: "Highway axis",
+      alternatives: ["Hold at LRP"], seats: [cdr, ops] }
+  - { id: d2, t: 650, prompt: "HQ traffic claims 'retrograde confirmed' — accept, verify, or reject?",
+      options: ["Accept", "Verify via alternate net", "Reject"],
+      risk: [high, low, med],
+      optimal: "Verify via alternate net",
+      alternatives: ["Reject"], seats: [cdr, intel] }
+  - { id: d3, t: 950, prompt: "Logistics link is rewriting fuel rosters: isolate the system, keep running, or go paper?",
+      options: ["Isolate the system", "Keep running, monitor", "Switch to paper rosters"],
+      risk: [med, high, low],
+      optimal: "Isolate the system",
+      alternatives: ["Switch to paper rosters"], seats: [log, cdr] }
+  - { id: d4, t: 1250, prompt: "Corridor black: push the resupply window, hold at LRP, or divert north?",
+      options: ["Push the window", "Hold at LRP", "Divert north"],
+      risk: [high, low, med],
+      optimal: "Hold at LRP",
+      alternatives: ["Divert north"], seats: [cdr, log] }
+  - { id: d5, t: 1550, prompt: "Western massing now corroborated — commit reserves or take a second ISR pass?",
+      options: ["Commit reserves", "Second ISR pass", "Reinforce axis quietly"],
+      risk: [high, low, med],
+      optimal: "Second ISR pass",
+      alternatives: ["Reinforce axis quietly"], seats: [cdr, intel, ops] }
+
+queries:
+  - { id: t1, level: 1, text: "How many blue units are currently moving?",
+      options: ["0", "1", "2"] }
+  - { id: t2, level: 1, text: "What is the western border post's status?",
+      options: ["open", "closed", "unknown"] }
+  - { id: t3, level: 1, text: "When did you last hear from Higher HQ?",
+      options: ["<2 min ago", "2–5 min ago", ">5 min ago", "Never"] }
+  - { id: t4, level: 1, text: "What is the column's fuel state?",
+      options: ["above 60%", "40–60%", "below 40%", "unknown"] }
+  - { id: t5, level: 1, text: "Which net last delivered an ISR report?",
+      options: ["drone feed", "HQ broadcast", "patrol", "none"] }
+  - { id: t6, level: 2, text: "What is the ISR drone doing right now?",
+      options: ["orbiting", "grounded", "unknown"] }
+  - { id: t7, level: 2, text: "Can the column resupply from fuel alone above 60%?",
+      options: ["yes", "no"] }
+  - { id: t8, level: 2, text: "Which of your last 3 reports do you trust LEAST?",
+      options: ["most recent", "second", "third"] }
+  - { id: t9, level: 2, text: "Is Infantry Company Kilo currently moving?",
+      options: ["yes", "no"] }
+  - { id: t10, level: 2, text: "What degraded first — speed, completeness, or trustworthiness?",
+      options: ["speed", "completeness", "trustworthiness"] }
+  - { id: t11, level: 3, text: "Where is Column Alpha in 5 min if it keeps moving?",
+      options: ["NW quadrant", "NE quadrant", "SW quadrant", "SE quadrant"] }
+  - { id: t12, level: 3, text: "If the blackout lasts 10 more min, which decision expires first?",
+      options: ["route", "fuel", "medevac"] }
+  - { id: t13, level: 3, text: "Which seat's picture is MOST likely wrong right now?",
+      options: ["cdr", "ops", "intel", "comms", "log"] }
+  - { id: t14, level: 3, text: "What is OPFOR armor most likely to do next?",
+      options: ["ambush", "harass", "withdraw", "nothing"] }
+  - { id: t15, level: 3, text: "Will your next order to Higher HQ arrive intact?",
+      options: ["intact", "degraded", "lost"] }

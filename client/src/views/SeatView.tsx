@@ -376,6 +376,7 @@ export function SeatView({ seat }: { seat: string }) {
                 <MapPanel
                   units={view?.units ?? []} assets={view?.assets ?? []}
                   obstacles={obstacles} hot={view?.hot ?? []} links={view?.links ?? []}
+                  geo={meta?.geo ?? null}
                 />
               </div>
 

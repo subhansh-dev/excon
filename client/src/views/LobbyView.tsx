@@ -71,6 +71,7 @@ export function LobbyView() {
         <TopMark title="DSSC COMMAND DECISION TRAINER" sub="Defence Services Staff College · Multi-Domain Simulation" />
         <span style={{ flex: 1 }} />
         <nav className="nav-pills">
+          <a href="?view=home">HOME</a>
           <a className="on" href="?view=lobby">LOBBY</a>
           <a href="?view=analytics">ANALYTICS</a>
           <a href="?view=instructor">EXCON CONSOLE</a>
@@ -142,6 +143,7 @@ export function LobbyView() {
                 )}
                 <div className="mono" style={{ fontSize: 11, color: "var(--dim)", margin: "8px 0 14px" }}>
                   ⏱️ {Math.round(s.duration_s / 60)} min · 🎯 {s.decisions} decisions · 🧠 {s.queries} SA probes
+                  {s.area && <span style={{ color: "var(--accent-hi)" }}> · 📍 {s.area}</span>}
                 </div>
               </div>
 

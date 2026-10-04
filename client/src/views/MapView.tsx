@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { MapContainer, Rectangle, Tooltip, Polyline, Circle, useMapEvents } from "react-leaflet";
+import { MapContainer, Rectangle, Tooltip, Polyline, Circle, TileLayer, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { MilMarker } from "../map/MilMarker";
 import { MAP, assetColor, obstacleColor } from "../map/palette";
 import { summarizeLinks, type LinkSum } from "../map/linkHealth";
+import { gridToLatLng, metersPerGridUnit, windowBounds, fmtLat, fmtLon, haversineKm, type GeoWindow } from "../map/geo";
 import { sound } from "../sound";
 
 interface Unit {
@@ -44,10 +45,10 @@ function MapMouseTracker({ onMouseMove, onClick }: { onMouseMove: (lat: number, 
 
 export function MapView({
   units, assets, obstacles = [], hot = [], links = [],
-  showUnits = true, showAssets = true, height = 440,
+  showUnits = true, showAssets = true, height = 440, geo = null,
 }: {
   units: Unit[]; assets: Asset[]; obstacles?: Obstacle[]; hot?: string[]; links?: LinkSum[];
-  showUnits?: boolean; showAssets?: boolean; height?: number;
+  showUnits?: boolean; showAssets?: boolean; height?: number; geo?: GeoWindow | null;
 }) {
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
   const [showRings, setShowRings] = useState(false);
@@ -55,8 +56,12 @@ export function MapView({
   const [cursorPos, setCursorPos] = useState<[number, number]>([100, 100]);
   const [measuring, setMeasuring] = useState(false);
   const [measurePoints, setMeasurePoints] = useState<[number, number][]>([]);
+  const [tilesOffline, setTilesOffline] = useState(false);
 
   const { blackout, degraded } = summarizeLinks(links);
+  const P = (x: number, y: number): [number, number] => gridToLatLng(geo, x, y);
+  const unitM = metersPerGridUnit(geo);
+  const onGeo = !!geo;
 
   const handleMapClick = (lat: number, lng: number) => {
     if (measuring) {
@@ -69,9 +74,10 @@ export function MapView({
     }
   };
 
-  const measureDistance = () => {
+  const measureDistance = (): number | null => {
     if (measurePoints.length < 2) return null;
     const [p1, p2] = measurePoints;
+    if (onGeo) return Math.round(haversineKm(p1, p2) * 10) / 10;
     const d = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
     return Math.round(d * 10) / 10;
   };
@@ -81,14 +87,18 @@ export function MapView({
       <div className="tac-hud">
         <span className="hud-live">
           <span className="pingwrap"><span className={`pingdot ${degraded ? "amber" : "green"}`} /></span>
-          GRID: SYNTHETIC THEATER [X:{Math.round(cursorPos[1])} Y:{Math.round(cursorPos[0])}]
+          {onGeo ? (
+            <>{geo!.name.toUpperCase()} [{fmtLat(cursorPos[0])} {fmtLon(cursorPos[1])}]</>
+          ) : (
+            <>GRID: SYNTHETIC THEATER [X:{Math.round(cursorPos[1])} Y:{Math.round(cursorPos[0])}]</>
+          )}
         </span>
         <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
           <label style={{ cursor: "pointer", fontSize: 10 }}>
-            <input type="checkbox" checked={showRings} onChange={(e) => setShowRings(e.target.checked)} /> RINGS
+            <input type="checkbox" checked={showRings} onChange={() => setShowRings((v) => !v)} /> RINGS
           </label>
           <label style={{ cursor: "pointer", fontSize: 10 }}>
-            <input type="checkbox" checked={showFog} onChange={(e) => setShowFog(e.target.checked)} /> UNCERTAINTY
+            <input type="checkbox" checked={showFog} onChange={() => setShowFog((v) => !v)} /> UNCERTAINTY
           </label>
           <button
             className={`btn ghost`}
@@ -101,7 +111,11 @@ export function MapView({
           >
             {measuring ? "✕ CANCEL RULER" : "📐 MEASURE"}
           </button>
-          <span className="hud-dim">DATUM: WGS-84 (SIM) · 1:25,000</span>
+          <span className="hud-dim">
+            {onGeo
+              ? `WGS-84 REAL TERRAIN${tilesOffline ? " · BASE TILES OFFLINE" : " · © OPENSTREETMAP"}`
+              : "DATUM: WGS-84 (SIM) · 1:25,000"}
+          </span>
         </span>
       </div>
 
@@ -112,28 +126,41 @@ export function MapView({
           <b>RULER ACTIVE:</b> Click 2 points on map to measure distance.
           {measureDistance() !== null && (
             <span style={{ marginLeft: 12, fontWeight: 700, color: "var(--accent-hi)" }}>
-              DISTANCE: {measureDistance()} map units (~{(measureDistance()! * 0.25).toFixed(1)} km)
+              DISTANCE: {measureDistance()}{onGeo ? " km" : ` map units (~${(measureDistance()! * 0.25).toFixed(1)} km)`}
             </span>
           )}
         </div>
       )}
 
       <div className="tac-body">
-        <MapContainer crs={L.CRS.Simple} bounds={BOUNDS} style={{ height, background: MAP.bg }} attributionControl={false}>
+        <MapContainer
+          crs={onGeo ? undefined : L.CRS.Simple}
+          bounds={onGeo ? windowBounds(geo!) : BOUNDS}
+          style={{ height, background: MAP.bg }}
+          attributionControl={false}
+        >
           <MapMouseTracker
-            onMouseMove={(lat, lng) => setCursorPos([Math.round(lat), Math.round(lng)])}
+            onMouseMove={(lat, lng) => setCursorPos([lat, lng])}
             onClick={handleMapClick}
           />
 
+          {onGeo && (
+            <TileLayer
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxZoom={15}
+              eventHandlers={{ tileerror: () => setTilesOffline(true) }}
+            />
+          )}
+
           {gridLines().map((l, i) => (
-            <Polyline key={i} positions={l} pathOptions={{ color: MAP.grid, weight: 1 }} interactive={false} />
+            <Polyline key={i} positions={l.map(([x, y]) => P(x, y))} pathOptions={{ color: MAP.grid, weight: 1 }} interactive={false} />
           ))}
 
           {/* Obstacles */}
           {obstacles.map((o) => (
             <Rectangle
               key={o.id}
-              bounds={[[o.y1, o.x1], [o.y2, o.x2]]}
+              bounds={[P(o.x1, o.y1), P(o.x2, o.y2)]}
               pathOptions={{ color: obstacleColor(o.kind), weight: 1.5, dashArray: "4 3", fillOpacity: 0.18 }}
             >
               <Tooltip sticky>
@@ -154,7 +181,7 @@ export function MapView({
             a.x !== undefined && a.y !== undefined ? (
               <Rectangle
                 key={a.id}
-                bounds={[[a.y - 4, a.x - 4], [a.y + 4, a.x + 4]]}
+                bounds={[P(a.x - 4, a.y - 4), P(a.x + 4, a.y + 4)]}
                 pathOptions={{
                   color: assetColor(a.status),
                   weight: selectedEntity?.id === a.id ? 3 : 1.8,
@@ -186,16 +213,16 @@ export function MapView({
                 {/* Range Rings */}
                 {showRings && (
                   <>
-                    <Circle center={[u.y, u.x]} radius={15} pathOptions={{ color: MAP.blue, weight: 1, dashArray: "3 4", fillOpacity: 0.04 }} />
-                    <Circle center={[u.y, u.x]} radius={30} pathOptions={{ color: MAP.blue, weight: 1, dashArray: "6 6", fillOpacity: 0.02 }} />
+                    <Circle center={P(u.x, u.y)} radius={15 * unitM} pathOptions={{ color: MAP.blue, weight: 1, dashArray: "3 4", fillOpacity: 0.04 }} />
+                    <Circle center={P(u.x, u.y)} radius={30 * unitM} pathOptions={{ color: MAP.blue, weight: 1, dashArray: "6 6", fillOpacity: 0.02 }} />
                   </>
                 )}
 
                 {/* Fog of War / Uncertainty Ellipse */}
                 {showFog && uncertaintyRadius > 1 && (
                   <Circle
-                    center={[u.y, u.x]}
-                    radius={uncertaintyRadius}
+                    center={P(u.x, u.y)}
+                    radius={uncertaintyRadius * unitM}
                     pathOptions={{ color: MAP.warn, weight: 1, dashArray: "4 4", fillOpacity: 0.15, fillColor: MAP.warn }}
                   />
                 )}
@@ -203,7 +230,7 @@ export function MapView({
                 {/* Waypoint Track Line */}
                 {u.wp && u.wp.length > 0 && (
                   <Polyline
-                    positions={[[u.y, u.x], ...u.wp.map(([x, y]) => [y, x] as [number, number])]}
+                    positions={[P(u.x, u.y), ...u.wp.map(([x, y]) => P(x, y))]}
                     pathOptions={{ color: MAP.blue, weight: 2, dashArray: "4 4" }}
                   />
                 )}
@@ -211,7 +238,7 @@ export function MapView({
                 <MilMarker
                   sidc={u.sidc || (u.side === "opfor" ? "SHGPUCI----D---" : "SFGPUCI----D---")}
                   label={u.id.toUpperCase()}
-                  position={[u.y, u.x]}
+                  position={P(u.x, u.y)}
                   sublabel={`${u.status} · conf ${Math.round((u.confidence ?? 1) * 100)}%`}
                   hot={hot.includes(u.id)}
                   confidence={u.confidence ?? 1}
@@ -249,6 +276,9 @@ export function MapView({
             <span>STATUS: <b>{selectedEntity.status?.toUpperCase()}</b></span>
             {" · "}
             <span>GRID: [{Math.round(selectedEntity.x ?? 0)}, {Math.round(selectedEntity.y ?? 0)}]</span>
+            {onGeo && selectedEntity.x !== undefined && selectedEntity.y !== undefined && (
+              <span> · {fmtLat(P(selectedEntity.x, selectedEntity.y)[0])} {fmtLon(P(selectedEntity.x, selectedEntity.y)[1])}</span>
+            )}
             {selectedEntity.confidence !== undefined && (
               <span> · CONFIDENCE: <b>{Math.round(selectedEntity.confidence * 100)}%</b></span>
             )}

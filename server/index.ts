@@ -37,6 +37,7 @@ const gameServer = new Server({
             return {
               id: s.id, title: s.title, briefing: s.briefing ?? "",
               duration_s: s.duration_s,
+              area: s.geo?.name ?? "",
               decisions: s.decisions.length, queries: s.queries.length,
               seats: s.nodes.filter((n) => n.kind === "seat").map((n) => n.role ?? n.id),
             };

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { TopMark } from "./TopMark";
+import { downloadAarHtml } from "./aarExport";
 import "./aar.css";
 
 /** After-Action Report: dual timelines, IIS curves, calibration, CAST, counterfactual simulator. Print to PDF. */
@@ -110,6 +111,9 @@ export function AARView({ runId }: { runId: string }) {
         <span className="stat">EXERCISE RUN <b>{aar.header.runId}</b></span>
         <span className="stat">SEED <b>{aar.header.seed}</b></span>
         <span style={{ flex: 1 }} />
+        <button className="btn" onClick={() => downloadAarHtml(aar, cf, cfMode, notes)}>
+          📄 EXPORT HTML DOSSIER
+        </button>
         <button className="btn primary" onClick={() => window.print()}>
           🖨️ PRINT / PDF DOSSIER
         </button>

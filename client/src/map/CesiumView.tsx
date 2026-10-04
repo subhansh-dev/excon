@@ -6,6 +6,7 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import ms from "milsymbol";
 import { MAP, assetColor, obstacleColor } from "./palette";
 import { summarizeLinks, type LinkSum } from "./linkHealth";
+import type { GeoWindow } from "./geo";
 import { sound } from "../sound";
 
 interface Unit {
@@ -18,9 +19,6 @@ interface Asset {
 interface Obstacle {
   id: string; kind: string; x1: number; y1: number; x2: number; y2: number; label?: string;
 }
-
-const gx = (x: number) => ((x - 100) / 100) * 1.5; // map-x -> lon
-const gy = (y: number) => ((y - 100) / 100) * 1.5; // map-y -> lat
 
 const symCache = new Map<string, HTMLCanvasElement>();
 function symCanvas(sidc: string, label: string): HTMLCanvasElement {
@@ -42,10 +40,11 @@ const sidcFor = (u: Unit) =>
 
 export function CesiumView({
   units, assets, obstacles = [], hot = [], links = [],
-  showUnits = true, showAssets = true, showLabels = true, height = 440,
+  showUnits = true, showAssets = true, showLabels = true, height = 440, geo = null,
 }: {
   units: Unit[]; assets: Asset[]; obstacles?: Obstacle[]; hot?: string[]; links?: LinkSum[];
   showUnits?: boolean; showAssets?: boolean; showLabels?: boolean; height?: number;
+  geo?: GeoWindow | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -54,32 +53,52 @@ export function CesiumView({
   // Same rules as the 2D map — a blackout must be visible in 3D too.
   const { blackout, degraded } = summarizeLinks(links);
 
+  // Grid → degrees: real window when the deck declares one, else the classic ±1.5° patch.
+  const gx = (x: number) => (geo ? geo.origin.lon + (x / 200) * geo.span.lon : ((x - 100) / 100) * 1.5);
+  const gy = (y: number) => (geo ? geo.origin.lat + (y / 200) * geo.span.lat : ((y - 100) / 100) * 1.5);
+  const spanDeg = geo ? geo.span.lat : 4.4;
+  const spanM = spanDeg * 111320;
+  const centerLon = geo ? geo.origin.lon + geo.span.lon / 2 : 0;
+  const southLat = geo ? geo.origin.lat : -2.2;
+
   useEffect(() => {
     if (!ref.current || viewerRef.current) return;
     try {
+      const base = geo
+        ? new Cesium.ImageryLayer(
+            new Cesium.UrlTemplateImageryProvider({
+              url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+              maximumLevel: 15,
+              credit: "© OpenStreetMap contributors",
+            }),
+          )
+        : new Cesium.ImageryLayer(
+            new Cesium.GridImageryProvider({
+              cells: 8,
+              color: Cesium.Color.fromCssColorString("rgba(135,120,95,0.3)"),
+              backgroundColor: Cesium.Color.fromCssColorString(MAP.bg),
+            }),
+          );
       const viewer = new Cesium.Viewer(ref.current, {
         animation: false, timeline: false, baseLayerPicker: false, geocoder: false,
         homeButton: false, sceneModePicker: false, navigationHelpButton: false,
         fullscreenButton: false, infoBox: false, selectionIndicator: false,
-        baseLayer: new Cesium.ImageryLayer(
-          new Cesium.GridImageryProvider({
-            cells: 8,
-            color: Cesium.Color.fromCssColorString("rgba(135,120,95,0.3)"),
-            backgroundColor: Cesium.Color.fromCssColorString(MAP.bg),
-          }),
-        ),
+        baseLayer: base,
         terrainProvider: new Cesium.EllipsoidTerrainProvider(),
       });
 
       viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(MAP.bg);
       viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#e4ded2");
       viewer.camera.setView({
-        destination: Cesium.Rectangle.fromDegrees(-2.2, -2.2, 2.2, 2.2),
+        destination: geo
+          ? Cesium.Rectangle.fromDegrees(geo.origin.lon, geo.origin.lat, geo.origin.lon + geo.span.lon, geo.origin.lat + geo.span.lat)
+          : Cesium.Rectangle.fromDegrees(-2.2, -2.2, 2.2, 2.2),
         orientation: { heading: 0, pitch: -0.85, roll: 0 },
       });
 
       const credit = viewer.cesiumWidget.creditContainer as HTMLElement;
-      if (credit) credit.style.display = "none";
+      // Real terrain must carry the OSM attribution; the synthetic grid needs none.
+      if (credit && !geo) credit.style.display = "none";
       viewerRef.current = viewer;
     } catch (e) {
       setError(`3D globe initialization notice (${(e as Error).message}) — 2D tactical map remains fully operational.`);
@@ -88,7 +107,7 @@ export function CesiumView({
       viewerRef.current?.destroy();
       viewerRef.current = null;
     };
-  }, []);
+  }, [geo]);
 
   const setCameraView = (preset: "top" | "iso" | "close") => {
     const viewer = viewerRef.current;
@@ -98,19 +117,21 @@ export function CesiumView({
 
     if (preset === "top") {
       viewer.camera.flyTo({
-        destination: Cesium.Rectangle.fromDegrees(-2.0, -2.0, 2.0, 2.0),
+        destination: geo
+          ? Cesium.Rectangle.fromDegrees(geo.origin.lon + geo.span.lon * 0.045, geo.origin.lat + geo.span.lat * 0.045, geo.origin.lon + geo.span.lon * 0.955, geo.origin.lat + geo.span.lat * 0.955)
+          : Cesium.Rectangle.fromDegrees(-2.0, -2.0, 2.0, 2.0),
         orientation: { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
         duration: 1.2,
       });
     } else if (preset === "iso") {
       viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(0, -2.2, 450000),
+        destination: Cesium.Cartesian3.fromDegrees(centerLon, southLat, geo ? Math.round(spanM * 0.92) : 450000),
         orientation: { heading: 0, pitch: -0.85, roll: 0 },
         duration: 1.2,
       });
     } else if (preset === "close") {
       viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(0, -1.2, 220000),
+        destination: Cesium.Cartesian3.fromDegrees(centerLon, southLat + spanDeg * 0.25, geo ? Math.round(spanM * 0.45) : 220000),
         orientation: { heading: 0.2, pitch: -0.65, roll: 0 },
         duration: 1.2,
       });
@@ -212,7 +233,7 @@ export function CesiumView({
         });
       }
     }
-  }, [units, assets, obstacles, hot, showUnits, showAssets, showLabels]);
+  }, [units, assets, obstacles, hot, showUnits, showAssets, showLabels, geo]);
 
   if (error) {
     return (

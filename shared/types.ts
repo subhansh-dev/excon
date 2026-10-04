@@ -127,6 +127,9 @@ export interface ScenarioDef {
   duration_s: number;
   tick_ms: number;
   seed: number;
+  /** Optional real-world anchor: maps grid (0..200)² onto a WGS-84 window.
+   *  Absent → classic synthetic grid. Present → real basemap + true coordinates. */
+  geo?: GeoWindow;
   nodes: NodeDef[];
   links: LinkDef[];
   obstacles?: ObstacleDef[];
@@ -134,6 +137,16 @@ export interface ScenarioDef {
   injects: InjectDef[];
   decisions: DecisionPointDef[];
   queries: QueryDef[];
+}
+
+export interface GeoWindow {
+  /** Human name of the real training area, e.g. "Thar Sector — Jaisalmer–Pokhran". */
+  name: string;
+  /** Grid (0,0) = south-west corner. Lat increases with grid y, lon with grid x. */
+  origin: { lat: number; lon: number };
+  /** Degrees spanned by the full 200×200 grid. */
+  span: { lat: number; lon: number };
+  attribution?: string;
 }
 
 export interface ObstacleDef {

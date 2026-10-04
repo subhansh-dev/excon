@@ -554,6 +554,8 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 4px;
   padding: 6px 12px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
@@ -946,7 +948,7 @@ table.data .num {
 /* ---------- Lobby Grid ---------- */
 .lobby-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
   margin-top: 12px;
 }
@@ -989,4 +991,20 @@ table.data .num {
 @keyframes radar-pulse {
   0% { transform: scale(0.6); opacity: 1; }
   100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* ---------- Responsive pass (screen-scoped: print keeps table layout intact) */
+@media screen and (max-width: 860px) {
+  .topbar { flex-wrap: wrap; row-gap: 8px; column-gap: 10px; padding: 10px 12px; }
+  .topbar .stat { font-size: 10px; padding: 2px 6px; }
+  .nav-pills { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.data { display: block; width: 100%; overflow-x: auto; }
+}
+@media screen and (max-width: 640px) {
+  .govbar { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 0 10px; font-size: 9px; }
+  .govbar .cls { display: none; }
+  .govbar > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .govbar .right { gap: 8px; }
+  .layout { padding: 10px; gap: 12px; }
+  .panel { padding: 12px 14px; }
 }

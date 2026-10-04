@@ -215,7 +215,7 @@ export class TrainerRoom extends Room<{ state: Session }> {
     client.send("hello", {
       runId: this.runId,
       seat,
-      scenario: { id: this.scenario.id, title: this.scenario.title, duration_s: this.scenario.duration_s },
+      scenario: { id: this.scenario.id, title: this.scenario.title, duration_s: this.scenario.duration_s, geo: this.scenario.geo ?? null },
       briefing: this.scenario.briefing ?? "",
       objectives: this.scenario.objectives ?? [],
       obstacles: this.scenario.obstacles ?? [],

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Room } from "@colyseus/sdk";
 import { joinRoom, sendLinkPatch, sendInjectNow, sendFreeze } from "../net";
-import { TopMark, Disclaimer } from "./TopMark";
+import { TopMark, Disclaimer, APPOINTMENT_SHORT } from "./TopMark";
 import { MapPanel } from "../map/MapPanel";
 import { InboxView } from "./InboxView";
 import { sound } from "../sound";
@@ -267,6 +267,7 @@ export function InstructorView() {
   const [briefing, setBriefing] = useState("");
   const [objectives, setObjectives] = useState<string[]>([]);
   const [obstacles, setObstacles] = useState<any[]>([]);
+  const [geo, setGeo] = useState<any>(null);
   const [linkDefs, setLinkDefs] = useState<any[]>([]);
   const [nodes, setNodes] = useState<any[]>([]);
   const [tapTarget, setTapTarget] = useState("__all__");
@@ -296,6 +297,7 @@ export function InstructorView() {
           setObjective(m.deceptionObjective ?? "");
           setBriefing(m.briefing ?? ""); setObjectives(m.objectives ?? []);
           setObstacles(m.obstacles ?? []); setLinkDefs(m.links ?? []);
+          setGeo(m.scenario?.geo ?? null);
           setNodes(m.nodes ?? []);
         });
         rm.onMessage("truth", (t: any) => {
@@ -446,7 +448,7 @@ export function InstructorView() {
         <div>
           <div className="panel">
             <h2>GROUND TRUTH (TRAINEES NEVER SEE THIS)</h2>
-            <MapPanel units={truth?.units ?? []} assets={truth?.assets ?? []} obstacles={obstacles} hot={[]} links={Object.values(links)} />
+            <MapPanel units={truth?.units ?? []} assets={truth?.assets ?? []} obstacles={obstacles} hot={[]} links={Object.values(links)} geo={geo} />
           </div>
           <div className="panel">
             <h2>ONE-TAP DISRUPTION</h2>
@@ -589,6 +591,14 @@ export function InstructorView() {
                   <span>
                     <span className="inst-est-k">conflict risk</span>
                     <span className={`risk ${dryRes.est.risk}`}>{dryRes.est.risk.toUpperCase()}</span>
+                  </span>
+                  <span>
+                    <span className="inst-est-k">affects</span>
+                    <span className="inst-est-v">
+                      {(linkDefs.find((l: any) => l.id === dryRes.linkId)?.seats ?? [])
+                        .map((s: string) => APPOINTMENT_SHORT[s] || s.toUpperCase())
+                        .join(" · ") || "—"}
+                    </span>
                   </span>
                 </div>
                 <div className="inst-est-note">{dryRes.est.narrative}</div>

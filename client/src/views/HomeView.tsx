@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { TopMark, Disclaimer } from "./TopMark";
 import { sound } from "../sound";
+import { useT } from "../i18n";
 
 const SEAT_CARDS = [
   { id: "cdr", code: "CDR", name: "Commander", duty: "Commits the COA. Decides what to trust when the nets disagree." },
@@ -13,6 +14,7 @@ const SEAT_CARDS = [
 
 const CAPABILITIES = [
   {
+    k: "one",
     title: "ONE TRUTH, FIVE BROKEN VIEWS",
     body: "A single authoritative simulation projects a deliberately degraded slice of itself to each seat — latency, dropouts and spoofed feeds, derived from the scenario deck.",
     icon: (
@@ -23,6 +25,7 @@ const CAPABILITIES = [
     ),
   },
   {
+    k: "score",
     title: "SCORED, NOT JUDGED BY EYE",
     body: "SAGAT probes, CAST checks, per-seat Information Integrity Score, OODA latency and confidence-vs-accuracy calibration — computed from the run, not from opinion.",
     icon: (
@@ -32,8 +35,9 @@ const CAPABILITIES = [
     ),
   },
   {
+    k: "replay",
     title: "TICK-EXACT REPLAY",
-    body: "Seeded, fixed-tick, bit-identical. Scrub back to the exact second each seat's picture diverged from ground truth — with divergence computed from the deck itself.",
+    body: "Seeded, fixed-tick, deterministic. Scrub back to the exact second each seat's picture diverged from ground truth — with divergence computed from the deck itself.",
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6">
         <circle cx="12" cy="12" r="8.5" />
@@ -42,6 +46,7 @@ const CAPABILITIES = [
     ),
   },
   {
+    k: "cf",
     title: "COUNTERFACTUAL RE-SCORING",
     body: "Re-score the recorded run with the failure modes patched out: pristine links, zero spoofs. Shows what the decision would have cost without the EW.",
     icon: (
@@ -57,6 +62,7 @@ const CAPABILITIES = [
 export function HomeView() {
   const [health, setHealth] = useState<any>(null);
   const [scenarios, setScenarios] = useState<any[]>([]);
+  const t = useT();
 
   useEffect(() => {
     fetch("/api/health").then((r) => r.json()).then(setHealth).catch(() => setHealth({ ok: false }));
@@ -76,15 +82,15 @@ export function HomeView() {
         <TopMark title="DSSC COMMAND DECISION TRAINER" sub="Defence Services Staff College · Multi-Domain Simulation" />
         <span style={{ flex: 1 }} />
         <nav className="nav-pills">
-          <a className="on" href="?view=home">HOME</a>
-          <a href="?view=lobby">LOBBY</a>
-          <a href="?view=analytics">ANALYTICS</a>
-          <a href="?view=instructor">EXCON CONSOLE</a>
+          <a className="on" href="?view=home">{t("nav.home")}</a>
+          <a href="?view=lobby">{t("nav.lobby")}</a>
+          <a href="?view=analytics">{t("nav.analytics")}</a>
+          <a href="?view=instructor">{t("nav.excon")}</a>
         </nav>
         <span className="stat">
-          SIM SERVER:{" "}
+          {t("sim.server")}{" "}
           <b style={{ color: health?.ok ? "var(--ok)" : "var(--danger)" }}>
-            {health?.ok ? `ONLINE (${String(health.store || "?").toUpperCase()})` : "DISCONNECTED"}
+            {health?.ok ? `${t("sim.online")} (${String(health.store || "?").toUpperCase()})` : t("sim.off")}
           </b>
         </span>
       </div>
@@ -94,35 +100,33 @@ export function HomeView() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 20 }}>
           <div style={{ maxWidth: 660 }}>
             <div className="mono" style={{ fontSize: 10.5, letterSpacing: "0.16em", color: "var(--accent-hi)", marginBottom: 10 }}>
-              SIH26248 · MINISTRY OF DEFENCE · DEFENCE SERVICES STAFF COLLEGE
+              {t("home.kicker")}
             </div>
             <h1 style={{ margin: "0 0 10px", fontSize: "clamp(24px, 6.5vw, 34px)", lineHeight: 1.12, letterSpacing: "-0.01em" }}>
-              Train the decision, not the network.
+              {t("home.title")}
             </h1>
             <p style={{ margin: 0, fontSize: 14.5, color: "var(--dim)", maxWidth: 620 }}>
-              A multi-domain staff exercise where the radio lies, the feeds disagree and the picture
-              is wrong on purpose. Five appointments, one ground truth, and an after-action review that
-              shows the exact tick each seat lost it.
+              {t("home.sub")}
             </p>
             <div className="row" style={{ gap: 10, marginTop: 18, flexWrap: "wrap" }}>
               <button className="btn primary" style={{ padding: "11px 20px", fontSize: 13.5 }} onClick={() => open("?view=instructor&scenario=reach&demo=1")}>
-                1-CLICK JURY DEMO
+                {t("home.demo")}
               </button>
               <button className="btn ghost" style={{ padding: "11px 20px", fontSize: 13.5 }} onClick={() => open("?view=lobby")}>
-                OPEN EXERCISE LOBBY
+                {t("home.lobby")}
               </button>
             </div>
             <div className="mono" style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 10 }}>
-              Demo spawns scripted staff seats & runs the full exercise to a scored AAR — no setup.
+              {t("home.demoHint")}
             </div>
           </div>
 
           <div style={{ display: "grid", gap: 8, minWidth: 240 }}>
             {[
-              ["SCENARIO DECKS", `${scenarios.length || 3} live · YAML, deception objectives`],
-              ["APPOINTMENTS", "5 crew seats + EXCON + demo bots"],
-              ["SCORING", "SAGAT · CAST · IIS · OODA · calibration"],
-              ["REPLAY", "Seeded, tick-exact, bit-identical"],
+              [t("home.stat.decks"), t("home.stat.decksV", { n: scenarios.length || 3 })],
+              [t("home.stat.appts"), t("home.stat.apptsV")],
+              [t("home.stat.scoring"), t("home.stat.scoringV")],
+              [t("home.stat.replay"), t("home.stat.replayV")],
             ].map(([k, v]) => (
               <div
                 key={k}
@@ -145,9 +149,9 @@ export function HomeView() {
       {/* Role entry */}
       <div className="panel" style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-          <h2 style={{ margin: 0 }}>TAKE A SEAT</h2>
+          <h2 style={{ margin: 0 }}>{t("home.takeSeat")}</h2>
           <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
-            opens in a new tab · deck: {primaryScenario.toUpperCase()} · pick any deck from the LOBBY
+            {t("home.takeSeatHint", { deck: primaryScenario.toUpperCase() })}
           </span>
         </div>
         <div className="lobby-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
@@ -170,8 +174,8 @@ export function HomeView() {
                 <span className="mono" style={{ fontSize: 15, fontWeight: 700, color: "var(--accent-hi)" }}>{s.code}</span>
                 <span className="mono" style={{ fontSize: 9.5, letterSpacing: "0.12em", color: "var(--muted)" }}>OPEN →</span>
               </div>
-              <b style={{ color: "var(--text-pure)", fontSize: 13.5 }}>{s.name}</b>
-              <span className="muted" style={{ fontSize: 12, lineHeight: 1.45 }}>{s.duty}</span>
+              <b style={{ color: "var(--text-pure)", fontSize: 13.5 }}>{t(`seat.${s.id === "instructor" ? "excon" : s.id}.name`)}</b>
+              <span className="muted" style={{ fontSize: 12, lineHeight: 1.45 }}>{t(`seat.${s.id === "instructor" ? "excon" : s.id}.duty`)}</span>
             </button>
           ))}
         </div>
@@ -183,9 +187,9 @@ export function HomeView() {
           <div className="panel" key={c.title} style={{ marginTop: 0 }}>
             <div className="row" style={{ gap: 10, alignItems: "center", marginBottom: 8 }}>
               <span style={{ color: "var(--accent-hi)", display: "inline-flex" }}>{c.icon}</span>
-              <b className="mono" style={{ fontSize: 11.5, letterSpacing: "0.1em", color: "var(--text-pure)" }}>{c.title}</b>
+              <b className="mono" style={{ fontSize: 11.5, letterSpacing: "0.1em", color: "var(--text-pure)" }}>{t(`cap.${c.k}.title`)}</b>
             </div>
-            <p className="muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55 }}>{c.body}</p>
+            <p className="muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55 }}>{t(`cap.${c.k}.body`)}</p>
           </div>
         ))}
       </div>

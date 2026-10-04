@@ -7,6 +7,7 @@ import type { CounterfactualResult } from "./counterfactual.js";
 import { deckTruth, entityList, labelMap, type EntityRef } from "./scenario.js";
 import {
   calibrationDivergence,
+  brierScore,
   uncertaintyBudget,
   adaptationScore,
   isVerifyRequest,
@@ -34,15 +35,33 @@ export async function buildAAR(runId: string, store: RunStore) {
   }
 
   // Confidence vs accuracy per seat.
-  const calibration: Record<string, { meanConf: number; accuracy: number; divergence: number; n: number }> = {};
+  const calibration: Record<string, { meanConf: number; accuracy: number; divergence: number; brier: number; n: number }> = {};
   for (const seat of seats) {
     const ds = decisions.filter((d) => d.seat === seat);
     const meanConf = ds.length ? ds.reduce((s, d) => s + d.confidence, 0) / ds.length : 0;
     const accuracy = ds.length ? ds.filter((d) => d.correct).length / ds.length : 0;
     calibration[seat] = {
       meanConf: r2(meanConf), accuracy: r2(accuracy),
-      divergence: calibrationDivergence(ds), n: ds.length,
+      divergence: calibrationDivergence(ds), brier: brierScore(ds), n: ds.length,
     };
+  }
+  const brierOverall = brierScore(decisions);
+
+  // NASA-TLX post-exercise workload ratings (average when a seat submits more than once).
+  type TlxRow = { mental: number; physical: number; temporal: number; performance: number; effort: number; frustration: number; avg: number; n: number };
+  const tlx: Record<string, TlxRow> = {};
+  for (const e of events.filter((ev) => ev.type === "tlx" && ev.data && typeof ev.data.mental === "number")) {
+    const cur = tlx[e.actor];
+    const n = (cur?.n ?? 0) + 1;
+    const mix = (k: keyof TlxRow) =>
+      Math.round((((cur ? (cur[k] as number) * cur.n : 0) + Number(e.data[k] ?? 0)) / n) * 10) / 10;
+    const row: TlxRow = {
+      mental: mix("mental"), physical: mix("physical"), temporal: mix("temporal"),
+      performance: mix("performance"), effort: mix("effort"), frustration: mix("frustration"),
+      avg: 0, n,
+    };
+    row.avg = Math.round(((row.mental + row.physical + row.temporal + row.performance + row.effort + row.frustration) / 6) * 10) / 10;
+    tlx[e.actor] = row;
   }
 
   // CAST heuristic per comms glitch (link blackout / dropout inject).
@@ -215,6 +234,7 @@ export async function buildAAR(runId: string, store: RunStore) {
       decisions: ds.length,
       accuracy: r2(ds.length ? ds.filter((d) => d.correct).length / ds.length : 0),
       meanConfidence: r2(ds.length ? ds.reduce((s, d) => s + d.confidence, 0) / ds.length : 0),
+      brier: brierScore(ds),
       oodaMean: responseTimes[seat] ?? 0,
       rationaleWords: meanWords(ds.map((d) => d.rationale)),
       responses: dis.sent + dis.received,
@@ -243,6 +263,8 @@ export async function buildAAR(runId: string, store: RunStore) {
     probes,
     iisSeries,
     calibration,
+    brier: brierOverall,
+    tlx,
     cast,
     flags,
     injects,
@@ -268,7 +290,7 @@ interface NarrativeInput {
   decisions: DecisionRecord[];
   conflictedDecisions: number;
   certainWrong: number;
-  calibration: Record<string, { meanConf: number; accuracy: number; divergence: number; n: number }>;
+  calibration: Record<string, { meanConf: number; accuracy: number; divergence: number; brier: number; n: number }>;
   perSeat: { seat: string; decisions: number; accuracy: number; oodaMean: number; rationaleWords: number }[];
   cast: { t: number; kind: string; score: number }[];
   probes: any[];

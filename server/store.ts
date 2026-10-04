@@ -7,7 +7,7 @@ import { resolve, join } from "path";
 export interface RunEvent {
   seq: number;
   t: number;
-  type: "inject" | "message" | "decision" | "state" | "chat" | "link_change" | "probe" | "sart" | "run";
+  type: "inject" | "message" | "decision" | "state" | "chat" | "link_change" | "probe" | "sart" | "tlx" | "run";
   actor: string;
   data: any;
 }

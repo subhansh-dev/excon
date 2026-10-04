@@ -7,6 +7,8 @@ import { HomeView } from "./views/HomeView";
 import { AnalyticsView } from "./views/AnalyticsView";
 import { ReplayView } from "./views/ReplayView";
 import { sound } from "./sound";
+import { parseJoinToken } from "./net";
+import { useT, useLang, setLang } from "./i18n";
 
 const SEATS = ["cdr", "ops", "intel", "comms", "log"];
 
@@ -15,6 +17,8 @@ function GovBar() {
   const [up, setUp] = useState(true);
   const [clock, setClock] = useState("");
   const [soundOn, setSoundOn] = useState(sound.isEnabled());
+  const t = useT();
+  const lang = useLang();
 
   useEffect(() => {
     const tick = () => {
@@ -53,6 +57,13 @@ function GovBar() {
       <span className="right">
         <button
           className="sound-toggle-btn"
+          onClick={() => { sound.playClick(); setLang(lang === "en" ? "hi" : "en"); }}
+          title={lang === "en" ? "हिंदी में स्विच करें" : "Switch to English"}
+        >
+          {lang === "en" ? "हिंदी" : "ENGLISH"}
+        </button>
+        <button
+          className="sound-toggle-btn"
           onClick={toggleSound}
           title={soundOn ? "Mute Tactical Audio FX" : "Enable Tactical Audio FX"}
         >
@@ -61,7 +72,7 @@ function GovBar() {
         <span>{clock}</span>
         <span>
           <i className={`dot${up ? "" : " off"}`} />
-          {up ? "SIM ENGINE ACTIVE" : "SIM OFFLINE"}
+          {up ? t("gov.on") : t("gov.off")}
         </span>
       </span>
     </div>
@@ -70,7 +81,9 @@ function GovBar() {
 
 export default function App() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const view = (params.get("view") || "home").toLowerCase();
+  const joinToken = params.get("join") || "";
+  const tokenSeat = useMemo(() => (joinToken ? parseJoinToken(joinToken)?.seat ?? "" : ""), [joinToken]);
+  const view = tokenSeat || (params.get("view") || "home").toLowerCase();
   const run = params.get("run") || "";
 
   const page =
@@ -79,7 +92,7 @@ export default function App() {
     : view === "instructor" || view === "excon" ? <InstructorView />
     : view === "analytics" ? <AnalyticsView />
     : view === "lobby" ? <LobbyView />
-    : SEATS.includes(view) ? <SeatView seat={view} />
+    : SEATS.includes(view) ? <SeatView seat={view} joinToken={joinToken} />
     : <HomeView />;
 
   return (

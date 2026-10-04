@@ -40,6 +40,20 @@ export function calibrationDivergence(decisions: DecisionRecord[]): number {
   return Math.round((meanConf - meanAcc) * 1000) / 1000;
 }
 
+/**
+ * Mean Brier score over binary decision outcomes: mean((confidence − correctness)^2).
+ * Range 0..1 — 0 is perfect, 0.25 is an unconfident coin flip. Lower is better.
+ */
+export function brierScore(decisions: DecisionRecord[]): number {
+  if (decisions.length === 0) return 0;
+  const sum = decisions.reduce((s, d) => {
+    const p = Math.max(0, Math.min(1, d.confidence));
+    const o = d.correct ? 1 : 0;
+    return s + (p - o) * (p - o);
+  }, 0);
+  return Math.round((sum / decisions.length) * 1000) / 1000;
+}
+
 // ---- research-grade AAR depth (ported from the rival SIH implementations) ----
 
 function round1(n: number): number {

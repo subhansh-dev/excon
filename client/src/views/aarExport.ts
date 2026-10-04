@@ -206,12 +206,25 @@ export function buildAarHtml(aar: Any, cf: Any, cfMode: string, notes: string): 
   const calibRows = Object.entries(calib).filter(([, c]: any) => (c?.n ?? 0) > 0);
   if (calibRows.length) {
     const rows = calibRows.map(([seat, c]: any) =>
-      `<tr><td class="mono"><b>${esc(seat.toUpperCase())}</b></td><td class="num">${esc(c.n)}</td><td class="num">${pct(c.meanConf)}%</td><td class="num">${pct(c.accuracy)}%</td><td class="num ${c.divergence > 0.3 ? "bad" : "ok"}">${signed(c.divergence, 3)}</td></tr>`,
+      `<tr><td class="mono"><b>${esc(seat.toUpperCase())}</b></td><td class="num">${esc(c.n)}</td><td class="num">${pct(c.meanConf)}%</td><td class="num">${pct(c.accuracy)}%</td><td class="num ${c.divergence > 0.3 ? "bad" : "ok"}">${signed(c.divergence, 3)}</td><td class="num">${c.brier != null ? esc(c.brier) : "—"}</td></tr>`,
     ).join("");
+    const overall = aar?.brier != null ? `<p class="muted" style="font-size:11px;margin:8px 0 0">Team Brier score: <b>${esc(aar.brier)}</b> (0 = perfect confidence, 0.25 = coin flip — lower is better).</p>` : "";
     out.push(`<div class="panel"><h2>Confidence Calibration — Certain-and-Wrong Detector</h2>${table(
-      `<th>Seat</th><th class="num">Decisions</th><th class="num">Mean Confidence</th><th class="num">Accuracy</th><th class="num">Divergence (conf − acc)</th>`,
+      `<th>Seat</th><th class="num">Decisions</th><th class="num">Mean Confidence</th><th class="num">Accuracy</th><th class="num">Divergence (conf − acc)</th><th class="num">Brier ↓</th>`,
       rows,
-    )}<p class="muted" style="font-size:11px;margin:8px 0 0">Divergence above +0.30 means the seat trusted itself far beyond what the ground truth rewarded.</p></div>`);
+    )}<p class="muted" style="font-size:11px;margin:8px 0 0">Divergence above +0.30 means the seat trusted itself far beyond what the ground truth rewarded.</p>${overall}</div>`);
+  }
+
+  // ---- NASA-TLX workload ----
+  const tlxRows = Object.entries(aar?.tlx ?? {});
+  if (tlxRows.length) {
+    const rows = tlxRows.map(([seat, r]: any) =>
+      `<tr><td class="mono"><b>${esc(seat.toUpperCase())}</b></td><td class="num">${esc(r.mental)}</td><td class="num">${esc(r.physical)}</td><td class="num">${esc(r.temporal)}</td><td class="num">${esc(r.performance)}</td><td class="num">${esc(r.effort)}</td><td class="num">${esc(r.frustration)}</td><td class="num"><b>${esc(r.avg)}</b></td></tr>`,
+    ).join("");
+    out.push(`<div class="panel"><h2>NASA-TLX Post-Exercise Workload (0–100, lower = less strain)</h2>${table(
+      `<th>Seat</th><th class="num">Mental</th><th class="num">Physical</th><th class="num">Temporal</th><th class="num">Performance</th><th class="num">Effort</th><th class="num">Frustration</th><th class="num">Mean</th>`,
+      rows,
+    )}</div>`);
   }
 
   // ---- CAST ----

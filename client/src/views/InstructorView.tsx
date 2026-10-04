@@ -270,6 +270,8 @@ export function InstructorView() {
   const [geo, setGeo] = useState<any>(null);
   const [linkDefs, setLinkDefs] = useState<any[]>([]);
   const [nodes, setNodes] = useState<any[]>([]);
+  const [seatCodes, setSeatCodes] = useState<{ seat: string; token: string }[]>([]);
+  const [codeEnforce, setCodeEnforce] = useState(false);
   const [tapTarget, setTapTarget] = useState("__all__");
   const [patchTimes, setPatchTimes] = useState<Record<string, number>>({});
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -299,6 +301,7 @@ export function InstructorView() {
           setObstacles(m.obstacles ?? []); setLinkDefs(m.links ?? []);
           setGeo(m.scenario?.geo ?? null);
           setNodes(m.nodes ?? []);
+          setCodeEnforce(Boolean(m.codeEnforce));
         });
         rm.onMessage("truth", (t: any) => {
           if (!baselineRef.current) baselineRef.current = JSON.parse(JSON.stringify(t.links ?? {}));
@@ -306,6 +309,8 @@ export function InstructorView() {
         });
         rm.onMessage("feed", (f: any) => setFeed((p) => [...p.slice(-99), f]));
         rm.onMessage("wiretap", (m: any) => setWire((p) => [...p.slice(-99), m]));
+        rm.onMessage("seat_codes", (m: any) => { setSeatCodes(m.codes ?? []); setCodeEnforce(Boolean(m.enforce)); });
+        rm.onMessage("code_enforce", (m: any) => setCodeEnforce(Boolean(m.on)));
         rm.onStateChange((s: any) => setFrozen(s.freeze));
       })
       .catch((e) => setStatus(`connection failed: ${e.message}`));
@@ -430,6 +435,19 @@ export function InstructorView() {
         <span className="stat">t+<b>{truth ? Math.round(truth.t ?? 0) : 0}s</b></span>
         <span className="stat">{status}</span>
         <span style={{ flex: 1 }} />
+        <button className="btn" disabled={!room} title="Mint one signed join link per crew seat"
+          onClick={() => { if (room) { sound.playClick(); room.send("issue_codes", {}); } }}>
+          ISSUE SEAT CODES
+        </button>
+        <button className={`btn ${codeEnforce ? "primary" : ""}`} disabled={!room}
+          title="When on, only signed ?join= links can claim a crew seat — ?view= seat-claiming is rejected"
+          onClick={() => { if (room) { sound.playWarning(); room.send("code_enforce", { on: !codeEnforce }); setCodeEnforce(!codeEnforce); } }}>
+          {codeEnforce ? "CODES ENFORCED" : "ENFORCE OFF"}
+        </button>
+        <button className="btn" disabled={!room} title="Prompt every crew seat for a NASA-TLX workload rating — logged to the AAR"
+          onClick={() => { if (room) { sound.playClick(); room.send("tlx_request", {}); } }}>
+          REQUEST TLX
+        </button>
         <button className="btn danger" onClick={toggleFreeze}>{frozen ? "UNFREEZE" : "FREEZE ALL"}</button>
         <button
           className="btn"
@@ -446,6 +464,26 @@ export function InstructorView() {
       </div>
       <div className="layout">
         <div>
+          {seatCodes.length > 0 && (
+            <div className="panel">
+              <h2>SEAT JOIN CODES {codeEnforce ? "· ENFORCED — these links are the only way crew gets in" : "· optional (enforce off)"}</h2>
+              <p className="muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
+                Each link assigns its seat server-side — handing someone the CDR link makes them CDR, whatever their URL says. Re-issuing returns the same codes.
+              </p>
+              <div className="inst-codes">
+                {seatCodes.map((c) => {
+                  const url = `${window.location.origin}/?join=${c.token}`;
+                  return (
+                    <div key={c.seat} className="inst-code-row">
+                      <b className="mono">{c.seat.toUpperCase()}</b>
+                      <span className="mono inst-code-url">{url}</span>
+                      <button className="btn ghost" onClick={() => { sound.playClick(); void navigator.clipboard.writeText(url); }}>COPY</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="panel">
             <h2>GROUND TRUTH (TRAINEES NEVER SEE THIS)</h2>
             <MapPanel units={truth?.units ?? []} assets={truth?.assets ?? []} obstacles={obstacles} hot={[]} links={Object.values(links)} geo={geo} />

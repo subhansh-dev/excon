@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { TopMark, Disclaimer, APPOINTMENT } from "./TopMark";
 import { sound } from "../sound";
+import { useT } from "../i18n";
 
 /** Exercise lobby: scenario selector, custom YAML loader, 1-click jury demo, run records. */
 export function LobbyView() {
@@ -11,6 +12,7 @@ export function LobbyView() {
   const [filterQuery, setFilterQuery] = useState("");
   const [customYamlName, setCustomYamlName] = useState("");
   const [customYamlStatus, setCustomYamlStatus] = useState("");
+  const t = useT();
 
   useEffect(() => {
     fetch("/api/health").then((r) => r.json()).then(setHealth).catch(() => setHealth({ ok: false }));
@@ -71,14 +73,14 @@ export function LobbyView() {
         <TopMark title="DSSC COMMAND DECISION TRAINER" sub="Defence Services Staff College · Multi-Domain Simulation" />
         <span style={{ flex: 1 }} />
         <nav className="nav-pills">
-          <a href="?view=home">HOME</a>
-          <a className="on" href="?view=lobby">LOBBY</a>
-          <a href="?view=analytics">ANALYTICS</a>
-          <a href="?view=instructor">EXCON CONSOLE</a>
+          <a href="?view=home">{t("nav.home")}</a>
+          <a className="on" href="?view=lobby">{t("nav.lobby")}</a>
+          <a href="?view=analytics">{t("nav.analytics")}</a>
+          <a href="?view=instructor">{t("nav.excon")}</a>
         </nav>
         <span className="stat">
-          SIM SERVER: <b style={{ color: health?.ok ? "var(--ok)" : "var(--danger)" }}>
-            {health?.ok ? `ONLINE (${health.store.toUpperCase()})` : "DISCONNECTED"}
+          {t("sim.server")} <b style={{ color: health?.ok ? "var(--ok)" : "var(--danger)" }}>
+            {health?.ok ? `${t("sim.online")} (${health.store.toUpperCase()})` : t("sim.off")}
           </b>
         </span>
       </div>
@@ -88,11 +90,10 @@ export function LobbyView() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
           <div style={{ maxWidth: 700 }}>
             <h2 style={{ borderLeftColor: "var(--accent-hi)", margin: "0 0 8px" }}>
-              SIH26248 · DECISION-MAKING UNDER DEGRADED COMMS
+              {t("lobby.heroTitle")}
             </h2>
             <p style={{ margin: 0, fontSize: 13.5, color: "var(--dim)" }}>
-              One authoritative multi-domain simulation projecting <i>deliberately degraded, asynchronous views</i> to each staff appointment.
-              Evaluates cognitive resistance to adversarial spoofing, latency spikes, and communication blackouts via SAGAT situational awareness probes and automated CAST scoring.
+              {t("lobby.heroBody")}
             </p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 200 }}>
@@ -104,10 +105,10 @@ export function LobbyView() {
                 window.open("?view=instructor&scenario=reach&demo=1", "_blank");
               }}
             >
-              🚀 1-CLICK JURY DEMO RUN
+              {t("lobby.demo")}
             </button>
             <span style={{ fontSize: 10.5, fontFamily: "var(--mono)", color: "var(--muted)", textAlign: "center" }}>
-              Spawns scripted AI staff seats &amp; live injects
+              {t("lobby.demoSub")}
             </span>
           </div>
         </div>
@@ -116,10 +117,10 @@ export function LobbyView() {
       {/* Scenario Directory */}
       <div className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-          <h2 style={{ margin: 0 }}>MISSION SCENARIO DIRECTORY</h2>
+          <h2 style={{ margin: 0 }}>{t("lobby.dir")}</h2>
           <input
             type="text"
-            placeholder="Search operational scenarios…"
+            placeholder={t("lobby.search")}
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             style={{ width: 240, padding: "4px 10px", fontSize: 12 }}
@@ -142,14 +143,14 @@ export function LobbyView() {
                   </p>
                 )}
                 <div className="mono" style={{ fontSize: 11, color: "var(--dim)", margin: "8px 0 14px" }}>
-                  ⏱️ {Math.round(s.duration_s / 60)} min · 🎯 {s.decisions} decisions · 🧠 {s.queries} SA probes
-                  {s.area && <span style={{ color: "var(--accent-hi)" }}> · 📍 {s.area}</span>}
+                  {t("lobby.meta", { min: Math.round(s.duration_s / 60), dec: s.decisions, q: s.queries })}
+                  {s.area && <span style={{ color: "var(--accent-hi)" }}> · {t("lobby.geo", { area: s.area })}</span>}
                 </div>
               </div>
 
               <div>
                 <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--muted)", marginBottom: 6 }}>
-                  SELECT APPOINTMENT STATION:
+                  {t("lobby.select")}
                 </div>
                 <div className="row" style={{ gap: 6 }}>
                   {(s.seats || []).map((seat: string) => (
@@ -176,7 +177,7 @@ export function LobbyView() {
 
           {filteredScenarios.length === 0 && (
             <div className="muted" style={{ padding: 24, textAlign: "center", gridColumn: "1 / -1" }}>
-              Loading scenario profiles from server...
+              {t("lobby.loading")}
             </div>
           )}
         </div>
@@ -185,13 +186,13 @@ export function LobbyView() {
       <div className="grid2">
         {/* Custom Scenario Ingestion */}
         <div className="panel">
-          <h2>CUSTOM SCENARIO INGESTION</h2>
+          <h2>{t("lobby.custom")}</h2>
           <p className="muted" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
-            Upload custom military scenario decks in YAML format to test custom troop movements, deception injects, and EW link timelines.
+            {t("lobby.customBody")}
           </p>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <label className="btn" style={{ cursor: "pointer", fontSize: 12 }}>
-              📂 SELECT YAML FILE
+              {t("lobby.selectYaml")}
               <input type="file" accept=".yaml,.yml" onChange={handleCustomYamlUpload} style={{ display: "none" }} />
             </label>
             {customYamlName && <span className="mono" style={{ fontSize: 11 }}>{customYamlName}</span>}
@@ -205,9 +206,9 @@ export function LobbyView() {
 
         {/* Past Exercise Runs Archive */}
         <div className="panel">
-          <h2>RECENT EXERCISE ARCHIVE</h2>
+          <h2>{t("lobby.archive")}</h2>
           {runs.length === 0 ? (
-            <span className="muted" style={{ fontSize: 12 }}>No past runs recorded yet. Launch a demo or live exercise above.</span>
+            <span className="muted" style={{ fontSize: 12 }}>{t("lobby.noRuns")}</span>
           ) : (
             <div style={{ maxHeight: 200, overflowY: "auto" }}>
               {runs.slice().reverse().slice(0, 8).map((r: any) => (
@@ -218,10 +219,10 @@ export function LobbyView() {
                   </div>
                   <div className="row" style={{ gap: 6 }}>
                     <a className="btn" style={{ padding: "2px 8px", fontSize: 11 }} href={`?view=aar&run=${r.id}`} target="_blank" rel="noreferrer">
-                      AAR DOSSIER
+                      {t("lobby.aarBtn")}
                     </a>
                     <a className="btn ghost" style={{ padding: "2px 8px", fontSize: 11 }} href={`?view=replay&run=${r.id}`} target="_blank" rel="noreferrer">
-                      DVR REPLAY
+                      {t("lobby.replayBtn")}
                     </a>
                   </div>
                 </div>

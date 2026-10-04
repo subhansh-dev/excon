@@ -15,6 +15,7 @@ import { CannedProvider, LlmVariantProvider, type InjectProvider } from "./injec
 import { DEMO_SEATS, DEMO_SCRIPT } from "./bots.js";
 import { openStore, type RunStore, type RunEvent } from "./store.js";
 import { scoreAnswer, type JournalEntry } from "../shared/queries.js";
+import { issueJoinToken, verifyJoinToken } from "./joincode.js";
 
 const SeatMeta = schema({ role: t.string(), connected: t.boolean() }, "SeatMeta");
 const SessionState = schema(
@@ -89,6 +90,11 @@ export class TrainerRoom extends Room<{ state: Session }> {
   private freezeAt: number[] = [];
   /** Instructor hold — separate from a SAGAT probe so releasing one keeps the other. */
   private manualFreeze = false;
+  /** Seat codes: once EXCON enforces, only signed ?join= tokens may claim a crew seat. */
+  private codeEnforce = false;
+  private issuedCodes = false;
+  /** link id -> last sim-time the link was active (feeds age-of-information chips). */
+  private linkLastOk = new Map<string, number>();
 
   async onCreate(options: any) {
     const scenarioId = options.scenario || process.env.SCENARIO || "reach";
@@ -172,6 +178,10 @@ export class TrainerRoom extends Room<{ state: Session }> {
     this.deliverDue();
 
     this.state.tick = this.world.tick;
+    // Age-of-information stamps: last sim-time each link actually carried traffic.
+    for (const [id, p] of Object.entries(this.world.links)) {
+      if (p.active) this.linkLastOk.set(id, this.world.time_s);
+    }
     this.emitViews();
 
     if (this.world.tick % 40 === 0) {
@@ -188,7 +198,17 @@ export class TrainerRoom extends Room<{ state: Session }> {
 
   // ---- seats ----
   async onJoin(client: Client, options: any) {
-    const seat = String(options.seat || "cdr");
+    let seat = String(options.seat || "cdr");
+    // Signed seat code wins over whatever the URL claimed: the server assigns the seat.
+    const tok = String(options.joinToken || "");
+    if (tok) {
+      const v = verifyJoinToken(tok);
+      if (!v) throw new Error("invalid seat code");
+      if (v.roomId !== this.roomId) throw new Error("seat code was issued for a different room");
+      seat = v.seat;
+    } else if (this.codeEnforce && seat !== "instructor") {
+      throw new Error("seat code required — ask EXCON for your join link");
+    }
     const needPw = process.env.ROOM_PASSWORD || "";
     if (seat === "instructor" && needPw && options.password !== needPw) {
       throw new Error("instructor access denied");
@@ -215,6 +235,8 @@ export class TrainerRoom extends Room<{ state: Session }> {
     client.send("hello", {
       runId: this.runId,
       seat,
+      codeEnforce: this.codeEnforce,
+      issuedCodes: this.issuedCodes,
       scenario: { id: this.scenario.id, title: this.scenario.title, duration_s: this.scenario.duration_s, geo: this.scenario.geo ?? null },
       briefing: this.scenario.briefing ?? "",
       objectives: this.scenario.objectives ?? [],
@@ -265,6 +287,10 @@ export class TrainerRoom extends Room<{ state: Session }> {
       case "sart": return void this.onSart(seat, data);
       case "notice": return void this.onNotice(seat, data);
       case "verify_request": return void this.sendChatAs(seat, String(data.to ?? "all"), `VERIFY REQUEST: ${String(data.text ?? "")}`);
+      case "issue_codes": return void this.onIssueCodes(seat);
+      case "code_enforce": return void this.onCodeEnforce(seat, data);
+      case "tlx": return void this.onTlx(seat, data);
+      case "tlx_request": return void this.onTlxRequest(seat);
       default: console.warn(`[room] unknown msg ${type} from ${seat}`);
     }
   }
@@ -380,6 +406,47 @@ export class TrainerRoom extends Room<{ state: Session }> {
     this.state.timeScale = s;
     void this.store.appendEvent(this.runId, { t: this.world.time_s, type: "state", actor: seat, data: { timeScale: s } });
     this.feed(`EXCON set time scale x${s}`);
+  }
+
+  /** Mint one signed join link per crew seat (deterministic — re-issue returns the same codes). */
+  private onIssueCodes(seat: string) {
+    if (seat !== "instructor") return;
+    const crew = ["cdr", "ops", "intel", "comms", "log"];
+    const codes = crew.map((s) => ({ seat: s, token: issueJoinToken(this.roomId, s) }));
+    this.issuedCodes = true;
+    this.clients_by_seat.get("instructor")?.send("seat_codes", { codes, enforce: this.codeEnforce });
+    this.feed("EXCON issued signed join links for all crew seats");
+    void this.store.appendEvent(this.runId, { t: this.world.time_s, type: "state", actor: seat, data: { issuedCodes: true } });
+  }
+
+  /** Enforce: raw ?view= seat claims get rejected; only signed tokens (and EXCON) get in. */
+  private onCodeEnforce(seat: string, d: any) {
+    if (seat !== "instructor") return;
+    this.codeEnforce = Boolean(d?.on);
+    this.clients_by_seat.get("instructor")?.send("code_enforce", { on: this.codeEnforce });
+    this.feed(this.codeEnforce
+      ? "SEAT CODES ENFORCED — direct ?view= crew joins rejected"
+      : "seat codes optional — direct ?view= crew joins allowed again");
+    void this.store.appendEvent(this.runId, { t: this.world.time_s, type: "state", actor: seat, data: { codeEnforce: this.codeEnforce } });
+  }
+
+  /** NASA-TLX workload rating from a crew seat — logged to the run, surfaced in the AAR. */
+  private onTlx(seat: string, d: any) {
+    if (seat === "instructor") return;
+    const pick = (k: string) => Math.max(0, Math.min(100, Math.round(Number(d?.[k] ?? 0))));
+    const data = {
+      mental: pick("mental"), physical: pick("physical"), temporal: pick("temporal"),
+      performance: pick("performance"), effort: pick("effort"), frustration: pick("frustration"),
+    };
+    void this.store.appendEvent(this.runId, { t: this.world.time_s, type: "tlx", actor: seat, data });
+    this.feed(`${seat} submitted NASA-TLX workload rating`);
+  }
+
+  /** EXCON asks every crew seat for a TLX rating (usually right before debrief). */
+  private onTlxRequest(seat: string) {
+    if (seat !== "instructor") return;
+    this.broadcast("tlx_prompt", { t: this.world.time_s });
+    this.feed("EXCON requested NASA-TLX workload ratings from all crew seats");
   }
 
   private onProbeAnswer(seat: string, d: any) {
@@ -624,7 +691,11 @@ export class TrainerRoom extends Room<{ state: Session }> {
     view.iis = computeIIS(view, this.world.truth);
     view.links = (this.feeds[seat] ?? []).map((id) => {
       const p = this.world.links[id];
-      return { id, latency_ms: p?.latency_ms ?? 0, loss_pct: p?.loss_pct ?? 0, integrity: p?.integrity ?? 1, active: p?.active ?? true };
+      return {
+        id, latency_ms: p?.latency_ms ?? 0, loss_pct: p?.loss_pct ?? 0,
+        integrity: p?.integrity ?? 1, active: p?.active ?? true,
+        age_s: Math.round(this.world.time_s - (this.linkLastOk.get(id) ?? this.world.time_s)),
+      };
     });
     const now = this.world.time_s;
     for (const [id, until] of [...this.hot]) if (until < now) this.hot.delete(id);

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Room } from "@colyseus/sdk";
-import { joinRoom, sendDecision, sendChat, sendVerify, sendProbeAnswer, sendSart } from "../net";
+import { joinRoom, joinRoomByToken, sendDecision, sendChat, sendVerify, sendProbeAnswer, sendSart, sendTlx } from "../net";
 import { MapPanel } from "../map/MapPanel";
 import { InboxView } from "./InboxView";
+import { SignalBars, linkStatus, AoIChip } from "./NetStatus";
+import { useT } from "../i18n";
 import { TopMark, APPOINTMENT, APPOINTMENT_SHORT, Disclaimer } from "./TopMark";
 import { sound } from "../sound";
 
@@ -30,7 +32,7 @@ const RADIO_CHANNELS = [
   { id: "log", label: "NET 6: S4 LOGISTICS", freq: "88.10 MHz" },
 ];
 
-export function SeatView({ seat }: { seat: string }) {
+export function SeatView({ seat, joinToken }: { seat: string; joinToken?: string }) {
   const [room, setRoom] = useState<Room | null>(null);
   const [status, setStatus] = useState("connecting…");
   const [view, setView] = useState<any>(null);
@@ -63,12 +65,19 @@ export function SeatView({ seat }: { seat: string }) {
   const [diagnosticsLink, setDiagnosticsLink] = useState<string | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceDispatchOn, setVoiceDispatchOn] = useState(true);
+  const [tlxOpen, setTlxOpen] = useState(false);
+  const [tlxVals, setTlxVals] = useState({ mental: 50, physical: 20, temporal: 50, performance: 50, effort: 50, frustration: 40 });
+  const t = useT();
 
   useEffect(() => {
     let r: Room | null = null;
     let alive = true;
     const params = new URLSearchParams(window.location.search);
-    joinRoom(seat, { scenario: params.get("scenario") || "reach" })
+    const scenario = params.get("scenario") || "reach";
+    const joining = joinToken
+      ? joinRoomByToken(joinToken, { scenario })
+      : joinRoom(seat, { scenario });
+    joining
       .then((rm) => {
         if (!alive) { rm.leave(true); return; }
         r = rm;
@@ -116,11 +125,15 @@ export function SeatView({ seat }: { seat: string }) {
           setBlip(Date.now());
           sound.playWarning();
         });
+        rm.onMessage("tlx_prompt", () => {
+          setTlxOpen(true);
+          sound.playDecisionAlert();
+        });
         rm.onStateChange((s: any) => { setPhase(s.phase); setTick(s.tick); setFrozen(Boolean(s.freeze)); });
       })
-      .catch((e) => setStatus(`connection failed: ${e.message} — verify server on port :2567`));
+      .catch((e) => setStatus(e.message?.includes("seat code") ? `ACCESS DENIED: ${e.message}` : `connection failed: ${e.message} — verify server on port :2567`));
     return () => { alive = false; r?.leave(true); };
-  }, [seat, voiceDispatchOn]);
+  }, [seat, joinToken, voiceDispatchOn]);
 
   useEffect(() => {
     if (!open) return;
@@ -153,6 +166,13 @@ export function SeatView({ seat }: { seat: string }) {
     sound.playClick();
     sendSart(room, sart);
     setSartSent(true);
+  };
+
+  const submitTlx = () => {
+    if (!room) return;
+    sound.playClick();
+    sendTlx(room, tlxVals);
+    setTlxOpen(false);
   };
 
   const handleSendChat = () => {
@@ -261,6 +281,34 @@ export function SeatView({ seat }: { seat: string }) {
         <a className="btn ghost" href="?view=lobby" target="_blank" rel="noreferrer">LOBBY</a>
       </div>
 
+      {tlxOpen && (
+        <div className="tlx-overlay" role="dialog" aria-modal="true" aria-label={t("tlx.title")}>
+          <div className="tlx-card">
+            <h2 style={{ margin: "0 0 4px" }}>{t("tlx.title")}</h2>
+            <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>{t("tlx.prompt")}</p>
+            {(["mental", "physical", "temporal", "performance", "effort", "frustration"] as const).map((k) => (
+              <div key={k} className="tlx-row">
+                <label htmlFor={`tlx-${k}`}>
+                  {t(`tlx.${k}`)}
+                  {k === "performance" && <span className="muted" style={{ fontWeight: 400 }}> — {t("tlx.perfHint")}</span>}
+                </label>
+                <input
+                  id={`tlx-${k}`} type="range" min={0} max={100} step={20}
+                  value={tlxVals[k]}
+                  onChange={(e) => setTlxVals((v) => ({ ...v, [k]: Number(e.target.value) }))}
+                />
+                <b className="mono tlx-val">{tlxVals[k]}</b>
+              </div>
+            ))}
+            <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 14, alignItems: "center" }}>
+              <span className="muted mono" style={{ fontSize: 10.5, marginRight: "auto" }}>0 · {t("tlx.low")} ←→ 100 · {t("tlx.high")}</span>
+              <button className="btn ghost" onClick={() => { sound.playClick(); setTlxOpen(false); }}>{t("tlx.later")}</button>
+              <button className="btn primary" onClick={submitTlx}>{t("tlx.submit")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {frozen && !probe && (
         <div className="banner warn">
           ⏸ SIMULATION HELD BY EXCON — STAND BY, ALL TIMERS ARE PAUSED
@@ -322,29 +370,32 @@ export function SeatView({ seat }: { seat: string }) {
 
           {probe ? (
             <div className="blanked">
-              ⚡ COGNITIVE SA PROBE ACTIVE — ALL MAPS &amp; TELEMETRY BLANKED
-              <span>Answer situational questions from operational memory · Nets are silenced during freeze</span>
+              {t("view.probeBlank")}
+              <span>{t("view.probeBlankSub")}</span>
             </div>
           ) : (
             <>
               <div className="panel">
-                <h2>COMMON OPERATING PICTURE (PERCEIVED THEATER VIEW)</h2>
+                <h2>{t("view.cop")}</h2>
                 {view?.links && view.links.length > 0 && (
                   <div className="netstrip">
                     {view.links.map((l: any) => {
-                      const cls = !l.active ? "bad" : l.integrity < 0.6 || l.loss_pct > 30 ? "warn" : "ok";
+                      const st = linkStatus(l);
                       return (
                         <span
                           key={l.id}
-                          className={`net ${cls}`}
+                          className={`net ${st.cls}`}
                           style={{ cursor: "pointer" }}
                           onClick={() => {
                             setDiagnosticsLink(l.id === diagnosticsLink ? null : l.id);
                             sound.playClick();
                           }}
-                          title="Click for Net Diagnostics"
+                          title={`${l.id} — ${st.word} · ${l.active ? `${l.latency_ms}ms / ${l.loss_pct}% loss` : `blackout for ${l.age_s ?? 0}s`} · click for diagnostics`}
                         >
-                          {l.id} · {l.active ? `${l.latency_ms}ms / ${l.loss_pct}% loss / ${(l.integrity * 100).toFixed(0)}% int` : "BLACKOUT"}
+                          {l.id}
+                          <SignalBars integrity={l.integrity ?? 1} />
+                          <b className={`lb lb-${st.cls}`}>{st.word}</b>
+                          <AoIChip ageS={l.age_s} active={l.active} />
                         </span>
                       );
                     })}
@@ -361,9 +412,13 @@ export function SeatView({ seat }: { seat: string }) {
                     {(() => {
                       const l = (view?.links ?? []).find((x: any) => x.id === diagnosticsLink);
                       if (!l) return <span>Link data unavailable</span>;
+                      const st = linkStatus(l);
                       return (
                         <div>
-                          Status: <b>{l.active ? "ONLINE" : "OFFLINE (BLACKOUT)"}</b> · Latency: <b>{l.latency_ms}ms</b> · Loss: <b>{l.loss_pct}%</b> · Signal Integrity: <b>{(l.integrity * 100).toFixed(1)}%</b>
+                          Status: <b>{l.active ? "ONLINE" : "OFFLINE (BLACKOUT)"}</b> <b className={`lb lb-${st.cls}`}>{st.word}</b> · Latency: <b>{l.latency_ms}ms</b> · Loss: <b>{l.loss_pct}%</b> · Signal Integrity: <b>{(l.integrity * 100).toFixed(1)}%</b> <SignalBars integrity={l.integrity ?? 1} />
+                          <div style={{ marginTop: 4, color: "var(--dim)" }}>
+                            Age of information: <b>{l.active ? "0s (live)" : `${l.age_s ?? 0}s since last RX`}</b>
+                          </div>
                           <div style={{ marginTop: 4, color: "var(--dim)" }}>
                             Assessment: {l.integrity < 0.5 ? "Adversary spoofing / corruption likely" : l.latency_ms > 2000 ? "Severe EW propagation delay" : "Net operating within nominal bounds"}
                           </div>
@@ -382,7 +437,7 @@ export function SeatView({ seat }: { seat: string }) {
 
               {/* Tactical Radio Dispatcher */}
               <div className="panel">
-                <h2>TACTICAL RADIO DISPATCH (MULTI-CHANNEL TRANSCEIVER)</h2>
+                <h2>{t("view.radio")}</h2>
 
                 {/* Tactical Channel Tuner */}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
@@ -634,7 +689,7 @@ export function SeatView({ seat }: { seat: string }) {
 
           {!probe && (
             <div className="panel">
-              <h2>RADIO TRAFFIC INBOX</h2>
+              <h2>{t("view.inbox")}</h2>
               <InboxView
                 messages={inbox}
                 onQuote={(q) => {

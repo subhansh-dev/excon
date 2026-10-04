@@ -6,6 +6,8 @@ How excon fits together, and where each behaviour actually lives. Read this befo
 
 **The server is the only thing that knows the truth.** Seats never see world state — they see a per-seat projection derived from the deck's link tables, and that projection is pushed to them. Everything else (disagreement, deception, probes, AAR) falls out of that rule.
 
+The same rule covers *identity*: a URL claiming `?view=cdr` proves nothing. EXCON mints signed join codes (`server/joincode.ts` — HMAC over room+seat), and under enforcement the server assigns the seat from the token, not the client. See [API.md](API.md#signed-seat-codes-server-assigned-seats).
+
 ```
 scenarios/*.yaml ──► server/room.ts (authoritative tick loop)
                           │

@@ -111,6 +111,9 @@ export function AARView({ runId }: { runId: string }) {
         <span className="stat">EXERCISE RUN <b>{aar.header.runId}</b></span>
         <span className="stat">SEED <b>{aar.header.seed}</b></span>
         <span style={{ flex: 1 }} />
+        <a className="btn" href={`?view=replay&run=${encodeURIComponent(runId)}`} title="Truth-vs-perception timeline scrubber: ground truth + per-seat lanes + entity divergence at any tick" target="_blank" rel="noreferrer">
+          ⏪ GHOST-REPLAY SCRUBBER
+        </a>
         <button className="btn" onClick={() => downloadAarHtml(aar, cf, cfMode, notes)}>
           📄 EXPORT HTML DOSSIER
         </button>
@@ -244,7 +247,8 @@ export function AARView({ runId }: { runId: string }) {
             <thead>
               <tr>
                 <th>APPOINTMENT</th><th className="num">DECISIONS</th><th className="num">ACCURACY</th>
-                <th className="num">MEAN CONF</th><th className="num">OODA MEAN</th>
+                <th className="num">MEAN CONF</th><th className="num" title="Mean Brier score (confidence vs outcome, 0–1, lower is better)">BRIER ↓</th>
+                <th className="num">OODA MEAN</th>
                 <th className="num">RATIONALE WORDS</th><th className="num">RESPONSES</th>
                 <th className="num">SENT</th><th className="num">DROPPED</th><th className="num">VERIFICATIONS</th>
               </tr>
@@ -256,6 +260,7 @@ export function AARView({ runId }: { runId: string }) {
                   <td className="num">{p.decisions}</td>
                   <td className="num">{p.accuracy}</td>
                   <td className="num">{p.meanConfidence}</td>
+                  <td className="num" title="0 = perfect confidence, 0.25 = coin-flip"> {p.brier ?? "—"}</td>
                   <td className="num">{p.oodaMean}s</td>
                   <td className="num">{p.rationaleWords}</td>
                   <td className="num">{p.responses}</td>
@@ -268,6 +273,36 @@ export function AARView({ runId }: { runId: string }) {
           </table>
         )}
       </div>
+
+      {Object.keys(aar.tlx ?? {}).length > 0 && (
+        <div className="panel">
+          <h2>NASA-TLX POST-EXERCISE WORKLOAD (0–100, lower = less strain)</h2>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>APPOINTMENT</th><th className="num">MENTAL</th><th className="num">PHYSICAL</th>
+                <th className="num">TEMPORAL</th><th className="num">PERFORMANCE</th><th className="num">EFFORT</th>
+                <th className="num">FRUSTRATION</th><th className="num">MEAN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(aar.tlx).map(([seat, r]: [string, any]) => (
+                <tr key={seat}>
+                  <td className="mono"><b>{seat.toUpperCase()}</b></td>
+                  <td className="num">{r.mental}</td>
+                  <td className="num">{r.physical}</td>
+                  <td className="num">{r.temporal}</td>
+                  <td className="num">{r.performance}</td>
+                  <td className="num">{r.effort}</td>
+                  <td className="num">{r.frustration}</td>
+                  <td className="num"><b>{r.avg}</b></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="aar-disclaimer">Self-reported workload captured when EXCON fired REQUEST TLX — pairs with OODA latency to show who was underwater, not just who was slow.</p>
+        </div>
+      )}
 
       <div className="panel">
         <h2>DOCTRINAL OBSERVATIONS &amp; PATTERNS</h2>
